@@ -1,5 +1,9 @@
 package com.android.shotz_pro_io
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,19 +16,24 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.DisplayMetrics
+import android.widget.RemoteViews
 import android.widget.Toast
 import android.widget.ToggleButton
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import java.io.File
 import java.lang.Exception
+import java.util.*
 import java.util.jar.Manifest
 
 class ScreenCaptureActivity : AppCompatActivity() {
 
-    private lateinit var toggle_button_screen_capturing: ToggleButton
+    lateinit var toggle_button_screen_capturing: ToggleButton
     private var mMediaProjection: MediaProjection? = null
     private lateinit var mMediaProjectionManager: MediaProjectionManager
     private lateinit var mMediaRecorder: MediaRecorder
+    private lateinit var mCollapsedNotificationView : RemoteViews
+    private lateinit var mExpandedView : RemoteViews
     private lateinit var mVirtualDisplay: VirtualDisplay
 
     private val permission = arrayOf<String>(
@@ -50,14 +59,20 @@ class ScreenCaptureActivity : AppCompatActivity() {
         }
 
     companion object {
-        var DISPLAY_WIDTH = 480
-        var DISPLAY_HEIGHT = 640
+        var DISPLAY_WIDTH = 720
+        var DISPLAY_HEIGHT = 1280
+        private var mContext : ScreenCaptureActivity? = null
+        fun getInstance() : Context{
+            return mContext!!
+        }
     }
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_screen_capture)
-
+        mContext = this
         this.toggle_button_screen_capturing = findViewById(R.id.toggle_button_screen_capturing)
 
         this.mMediaProjectionManager =
@@ -74,6 +89,33 @@ class ScreenCaptureActivity : AppCompatActivity() {
                 ActivityCompat.requestPermissions(this, permission, PERMISSION_CODE)
             }
         }
+
+        this.mCollapsedNotificationView = RemoteViews(packageName,R.layout.custom_capture_control_notification_layout)
+        val intent = Intent(this,NotificationReceiver::class.java)
+        intent.putExtra("from",NotificationReceiver.RECORD_SCREEN)
+        this.mCollapsedNotificationView.setOnClickPendingIntent(R.id.start_stop_btn_notification,
+            PendingIntent.getBroadcast(this,30,intent,0))
+
+        sendControlNotification()
+    }
+
+    private fun sendControlNotification(){
+
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+
+        val channel = NotificationChannel("Chatterz","shotz",NotificationManager.IMPORTANCE_HIGH)
+        channel.enableVibration(true)
+        notificationManager.createNotificationChannel(channel)
+
+        val builder = NotificationCompat.Builder(this,"Chatterz")
+            .setContentTitle("Shotz Pro")
+            .setOngoing(true)
+            .setSmallIcon(R.drawable.app_icon)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setContent(mCollapsedNotificationView)
+            .setAutoCancel(true)
+
+        notificationManager.notify(0,builder.build())
     }
 
     override fun onDestroy() {
@@ -159,7 +201,7 @@ class ScreenCaptureActivity : AppCompatActivity() {
     }
 
     // start capture when user click on toggle
-    private fun startScreenCapturing() {
+    open fun startScreenCapturing() {
         if (mMediaProjection == null) {
             startActivityForResult(
                 mMediaProjectionManager.createScreenCaptureIntent(),
@@ -182,7 +224,7 @@ class ScreenCaptureActivity : AppCompatActivity() {
     }
 
     //toggle screen share button
-    private fun onToggleScreenShare() {
+    open fun onToggleScreenShare() {
         if (toggle_button_screen_capturing.isChecked) {
             startScreenCapturing()
         } else {
