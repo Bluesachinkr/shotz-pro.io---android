@@ -1,6 +1,7 @@
-package com.android.shotz_pro_io
+package com.android.shotz_pro_io.common
 
 import android.os.Environment
+import com.android.shotz_pro_io.R
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*

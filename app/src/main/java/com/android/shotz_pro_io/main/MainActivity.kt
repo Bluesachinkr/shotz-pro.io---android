@@ -1,27 +1,32 @@
-package com.android.shotz_pro_io
+package com.android.shotz_pro_io.main
 
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import androidx.core.app.ActivityCompat
+import androidx.viewpager.widget.ViewPager
+import com.android.shotz_pro_io.R
+import com.android.shotz_pro_io.screenCapture.ScreenCaptureActivity
+import com.google.android.material.tabs.TabLayout
 
 class MainActivity : AppCompatActivity() {
     private val PERMISSION_CODE = 208
     private val permission = arrayOf<String>(android.Manifest.permission.READ_EXTERNAL_STORAGE,android.Manifest.permission.WRITE_EXTERNAL_STORAGE
         ,android.Manifest.permission.RECORD_AUDIO)
 
-
+    private lateinit var mViewPager : ViewPager
+    private lateinit var mTabLayout: TabLayout
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        if(hasPermissions(permission)){
+        this.mViewPager = findViewById(R.id.viewPager_main)
+        this.mTabLayout = findViewById(R.id.tabLayout_main)
 
-        }else{
+        if(!hasPermissions(permission)){
             ActivityCompat.requestPermissions(this,permission,PERMISSION_CODE)
         }
-        startActivity(Intent(this,ScreenCaptureActivity::class.java))
     }
 
     override fun onRequestPermissionsResult(
