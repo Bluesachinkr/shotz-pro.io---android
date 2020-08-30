@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/controlLayout"
+    android:layout_width="48dp"
+    android:layout_height="48dp"
+    android:focusable="false"
+    android:clickable="false">
+
+    <ImageView
+        android:id="@+id/bubble_account_image_view"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_account"
+        />
+
+</RelativeLayout>

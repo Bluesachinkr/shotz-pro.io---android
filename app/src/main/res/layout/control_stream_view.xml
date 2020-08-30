@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <RelativeLayout
+        android:id="@+id/live_stream_panel_before"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="#232323">
+
+        <LinearLayout
+            android:id="@+id/live_watching_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:layout_alignParentLeft="true"
+            android:layout_marginLeft="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_centerVertical="true"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_live_watching" />
+
+            <TextView
+                android:id="@+id/live_watching"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:text=""
+                android:textColor="@color/red"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/liveBtn_streamController"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="Live"
+            android:visibility="visible"
+            android:layout_marginRight="8dp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentRight="true"
+            android:background="@drawable/button_background_start_stop_recording"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/live_status_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textStyle="bold"
+            android:textSize="18sp"
+            android:visibility="gone"
+            android:textColor="@color/white"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:layout_margin="8dp"/>
+
+    </RelativeLayout>
+
+    <LinearLayout
+        android:id="@+id/live_stream_panel_after"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#232323"
+        android:weightSum="4"
+        android:visibility="gone"
+        android:paddingBottom="8dp"
+        android:paddingTop="8dp"
+        android:orientation="horizontal">
+
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content">
+
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_centerHorizontal="true"
+                android:src="@drawable/ic_pause_recording"/>
+
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content">
+
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_centerHorizontal="true"
+                android:src="@drawable/ic_stop_recording"/>
+
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content">
+
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_centerHorizontal="true"
+                android:src="@drawable/ic_stream"/>
+
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content">
+
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_centerHorizontal="true"
+                android:src="@drawable/ic_close"/>
+
+        </RelativeLayout>
+    </LinearLayout>
+
+</LinearLayout>
