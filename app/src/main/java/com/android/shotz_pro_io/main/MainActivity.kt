@@ -14,6 +14,7 @@ import androidx.fragment.app.FragmentStatePagerAdapter
 import androidx.viewpager.widget.ViewPager
 import com.android.shotz_pro_io.R
 import com.android.shotz_pro_io.screenCapture.CapturingBallService
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.material.tabs.TabLayout
 
 
@@ -25,6 +26,7 @@ class MainActivity : AppCompatActivity() {
         android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
         android.Manifest.permission.RECORD_AUDIO
     )
+
 
     private lateinit var mViewPager: ViewPager
     private lateinit var mTabLayout: TabLayout
@@ -43,9 +45,11 @@ class MainActivity : AppCompatActivity() {
             )
             startActivityForResult(intent, CODE_DRAW_OVER_OTHER_APP_PERMISSION)
         }else {
-            val intentBall = Intent(this,CapturingBallService::class.java)
-            startService(intentBall)
-            finish()
+            if(!CapturingBallService.isBallOpen) {
+                val intentBall = Intent(this, CapturingBallService::class.java)
+                startService(intentBall)
+                CapturingBallService.isBallOpen = true
+            }
         }
 
         if (!hasPermissions(permission)) {
@@ -53,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         }
         this.fragList.add(VideosFragment(this))
         this.fragList.add(StreamFragment())
-        this.fragList.add(SettingsFragment())
+        this.fragList.add(SettingsFragment(this))
         this.mViewPager.adapter = Adapter(supportFragmentManager, this.fragList)
         mTabLayout.setupWithViewPager(mViewPager)
         mTabLayout.setOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
@@ -90,6 +94,11 @@ class MainActivity : AppCompatActivity() {
         mTabLayout.getTabAt(0)?.setText("Videos")
         mTabLayout.getTabAt(1)?.setText("Stream")
         mTabLayout.getTabAt(2)?.setText("Settings")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        CapturingBallService.isBallOpen = false
     }
 
     class Adapter(fm: FragmentManager, list: MutableList<Fragment>) :
