@@ -3,13 +3,9 @@ package com.android.shotz_pro_io.screenCapture
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.MediaRecorder
@@ -25,12 +21,10 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.android.shotz_pro_io.common.Common
 import com.android.shotz_pro_io.R
-import com.android.shotz_pro_io.main.MainActivity
-import com.googlecode.mp4parser.authoring.Movie
 import java.io.File
 import java.lang.Exception
 
-class ScreenCaptureActivity : AppCompatActivity() {
+class ScreenRecordingActivity : AppCompatActivity() {
 
     open lateinit var toggle_button_screen_capturing: ToggleButton
     private var mMediaProjection: MediaProjection? = null
@@ -72,8 +66,8 @@ class ScreenCaptureActivity : AppCompatActivity() {
     companion object {
         var DISPLAY_WIDTH = 720
         var DISPLAY_HEIGHT = 1280
-        private var mContext: ScreenCaptureActivity? = null
-        fun getInstance(): ScreenCaptureActivity {
+        private var mContext: ScreenRecordingActivity? = null
+        fun getInstance(): ScreenRecordingActivity {
             return mContext!!
         }
     }

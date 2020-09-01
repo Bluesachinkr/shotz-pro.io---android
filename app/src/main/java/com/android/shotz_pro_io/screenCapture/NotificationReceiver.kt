@@ -32,7 +32,7 @@ class NotificationReceiver : BroadcastReceiver() {
     }
 
     private fun captureControl(context: Context?, purpose: Int) {
-        ScreenCaptureActivity.getInstance()?.let {
+        ScreenRecordingActivity.getInstance()?.let {
             if (it.isRecording) {
                 if (purpose == PLAY_PAUSE) {
                     playAndResumeRecordingControl(it)
@@ -48,7 +48,7 @@ class NotificationReceiver : BroadcastReceiver() {
         Toast.makeText(context, "Done", Toast.LENGTH_SHORT).show()
     }
 
-    private fun playAndResumeRecordingControl(activity: ScreenCaptureActivity) {
+    private fun playAndResumeRecordingControl(activity: ScreenRecordingActivity) {
         if (activity.isPause) {
             activity.mCollapsedNotificationView.setImageViewResource(
                 R.id.play_pause_btn,
@@ -66,7 +66,7 @@ class NotificationReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun stopRecordingControl(activity: ScreenCaptureActivity) {
+    private fun stopRecordingControl(activity: ScreenRecordingActivity) {
         activity.toggle_button_screen_capturing.isChecked = false
 
         //visibility
@@ -86,7 +86,7 @@ class NotificationReceiver : BroadcastReceiver() {
         activity.isRecording = false
     }
 
-    private fun startRecordingControl(activity: ScreenCaptureActivity) {
+    private fun startRecordingControl(activity: ScreenRecordingActivity) {
         activity.toggle_button_screen_capturing.isChecked = true
 
         //visibilty

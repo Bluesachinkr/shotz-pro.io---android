@@ -124,7 +124,7 @@ class CapturingBallService : Service(), View.OnTouchListener, View.OnClickListen
                 }
                 MotionEvent.ACTION_UP -> {
                     if (lastAction == MotionEvent.ACTION_DOWN) {
-                        /*val intent = Intent(this,ScreenCaptureActivity::class.java)
+                        /*val intent = Intent(this,ScreenRecordingActivity::class.java)
                         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                         startActivity(intent)
 
