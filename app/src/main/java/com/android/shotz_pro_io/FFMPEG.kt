@@ -12,8 +12,8 @@ class FFMPEG {
 
         external fun shutDown()
 
-        external fun encodeVideoFrame(yuvImage: Array<Byte>): Int
+        external fun encodeVideoFrame(yuvImage: ByteArray): Int
 
-        external fun encodeAudioFrame(length: Int, audioData: Array<Short>): Int
+        external fun encodeAudioFrame(length: Int, audioData: ShortArray): Int
     }
 }
