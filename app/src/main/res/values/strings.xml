@@ -2,4 +2,14 @@
     <string name="app_name">Shotz Pro</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <string name="login_preference">login_p</string>
+    <string name="login_preference_status">login_p_s</string>
+
+    <string name="loadingEvents">Loading events. Please wait…</string>
+    <string name="creatingEvent">Creating event. Please wait…</string>
+    <string name="startEvent">START EVENT</string>
+    <string name="endEvent">END EVENT</string>
+    <string name="startingEvent">Starting event. Please wait…</string>
+    <string name="endingEvent">Ending event. Please wait…</string>
 </resources>

@@ -10,6 +10,10 @@ data class EventData(
         return mEvent.id
     }
 
+    fun getTitle() : String{
+        return mEvent.snippet.title
+    }
+
     fun getThumbUri(): String {
         var url = mEvent.snippet.thumbnails.default.url
         if (url.startsWith("//")) {

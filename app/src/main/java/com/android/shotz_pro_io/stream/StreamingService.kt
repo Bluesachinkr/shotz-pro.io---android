@@ -4,15 +4,16 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
-import com.android.shotz_pro_io.FFMPEG
+import net.butterflytv.rtmp_client.RTMPMuxer
 
 class StreamingService : Service() {
     companion object {
         lateinit var mContext: StreamingService
+        lateinit var muxer : RTMPMuxer()
         val AUDIO_SAMPLE_RATE = 44100
     }
 
-    private val binder = LocalBinder()
+     val binder = LocalBinder()
     val activity = StreamingActivity.getInstance()
     private val frame_mutex = Object()
     private var encoding = false
@@ -20,6 +21,7 @@ class StreamingService : Service() {
 
     override fun onBind(p0: Intent?): IBinder? {
         mContext = this
+        muxer = RTMPMuxer()
         return binder
     }
 
@@ -30,7 +32,7 @@ class StreamingService : Service() {
             override fun onHandleFrame(result: ByteArray) {
                 if (encoding) {
                     synchronized(frame_mutex) {
-                        val encodedSize = FFMPEG.encodeVideoFrame(result)
+                        val encodedSize = muxer.writeVideo(result,0,result.size,)
                     }
                 }
             }
@@ -39,7 +41,7 @@ class StreamingService : Service() {
             override fun onHandleFrame(data: ShortArray, length: Int) {
                 if (encoding) {
                     synchronized(frame_mutex) {
-                        val encodedSize = FFMPEG.encodeAudioFrame(length, data)
+                        val encodedSize = Ffmpeg.encodeAudioFrame(length, data)
                     }
                 }
             }
@@ -47,7 +49,8 @@ class StreamingService : Service() {
         synchronized(frame_mutex) {
             activity.startVideoStream()
             activity.startAudioStream(AUDIO_SAMPLE_RATE)
-            FFMPEG.init(AUDIO_SAMPLE_RATE, streamUrl)
+            Ffmpeg.init(1280,720,AUDIO_SAMPLE_RATE, streamUrl)
+
         }
     }
 
@@ -57,11 +60,11 @@ class StreamingService : Service() {
         encoding = false
         isStreaming = false
         if (encoding) {
-            FFMPEG.shutDown()
+            Ffmpeg.shutDown()
         }
     }
 
-    private class LocalBinder : Binder() {
+    class LocalBinder : Binder() {
         fun getService(): StreamingService {
             return mContext
         }

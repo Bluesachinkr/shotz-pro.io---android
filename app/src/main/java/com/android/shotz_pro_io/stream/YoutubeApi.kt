@@ -84,61 +84,58 @@ class YoutubeApi {
                 e.printStackTrace()
             }
         }
-    }
 
-    fun getLiveEvents(youtube: YouTube): List<EventData> {
-        val liveBroadcastRequest = youtube.liveBroadcasts().list("id,snippet,contentDetails")
-        liveBroadcastRequest.broadcastStatus = "upcoming"
+        fun getLiveEvents(youtube: YouTube): List<EventData> {
+            val liveBroadcastRequest = youtube.liveBroadcasts().list("id,snippet,contentDetails")
+            liveBroadcastRequest.broadcastStatus = "upcoming"
 
-        val returnedBroadcastRequest = liveBroadcastRequest.execute()
+            val returnedBroadcastRequest = liveBroadcastRequest.execute()
 
-        val returnedList = returnedBroadcastRequest.items
+            val returnedList = returnedBroadcastRequest.items
 
-        val resultList = ArrayList<EventData>(returnedList.size)
-        for (data in returnedList) {
-            val streamId = data.contentDetails.boundStreamId
-            if (streamId != null) {
-                val eventData =
-                    EventData(data, getIngestionAddress(youtube, data.contentDetails.boundStreamId))
-                resultList.add(eventData)
-            } else {
-                val eventData =
-                    EventData(data, "")
-                resultList.add(eventData)
+            val resultList = ArrayList<EventData>(returnedList.size)
+            for (data in returnedList) {
+                val streamId = data.contentDetails.boundStreamId
+                if (streamId != null) {
+                    val eventData =
+                        EventData(data, getIngestionAddress(youtube, data.contentDetails.boundStreamId))
+                    resultList.add(eventData)
+                } else {
+                    val eventData =
+                        EventData(data, "")
+                    resultList.add(eventData)
+                }
+            }
+            return resultList
+        }
+
+        fun startEvent(youtube: YouTube, broadcastId: String) {
+            try {
+                Thread.sleep(1000)
+            } catch (e: java.lang.Exception) {
+                e.printStackTrace()
             }
         }
-        return resultList
-    }
 
-    fun startEvent(youtube: YouTube, broadcastId: String) {
-        try {
-            Thread.sleep(1000)
-        } catch (e: java.lang.Exception) {
-            e.printStackTrace()
+        fun endEvent(youtube: YouTube, broadcastId: String) {
+            val transitionRequest =
+                youtube.liveBroadcasts().transition("completed", broadcastId, "status")
+            transitionRequest.execute()
         }
 
-        val transitionRequest = youtube.liveBroadcasts().transition("live", broadcastId, "status")
-        transitionRequest.execute()
-    }
+        fun getIngestionAddress(youtube: YouTube, streamId: String): String {
+            val liveStreamRequest = youtube.liveStreams().list("cdn")
+            liveStreamRequest.id = streamId
 
-    fun endEvent(youtube: YouTube, broadcastId: String) {
-        val transitionRequest =
-            youtube.liveBroadcasts().transition("completed", broadcastId, "status")
-        transitionRequest.execute()
-    }
+            val returnedStreamRequest = liveStreamRequest.execute()
 
-    fun getIngestionAddress(youtube: YouTube, streamId: String): String {
-        val liveStreamRequest = youtube.liveStreams().list("cdn")
-        liveStreamRequest.id = streamId
-
-        val returnedStreamRequest = liveStreamRequest.execute()
-
-        val returnedList = returnedStreamRequest.items
-        if (returnedList.isEmpty()) {
-            return ""
-        } else {
-            val ingestionInfo = returnedList[0].cdn.ingestionInfo
-            return ingestionInfo.ingestionAddress + "/" + ingestionInfo.streamName
+            val returnedList = returnedStreamRequest.items
+            if (returnedList.isEmpty()) {
+                return ""
+            } else {
+                val ingestionInfo = returnedList[0].cdn.ingestionInfo
+                return ingestionInfo.ingestionAddress + "/" + ingestionInfo.streamName
+            }
         }
     }
 }

@@ -3,13 +3,12 @@ package com.android.shotz_pro_io
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import com.android.shotz_pro_io.main.MainActivity
+import com.android.shotz_pro_io.main.HomeActivity
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.SignInButton
-import com.google.android.gms.common.api.GoogleApiClient
 import com.google.android.gms.tasks.Task
 
 class LoginActivity : AppCompatActivity() {
@@ -52,7 +51,7 @@ class LoginActivity : AppCompatActivity() {
         try {
             val account = task.result
             account?.let {
-                val intent = Intent(this, MainActivity::class.java)
+                val intent = Intent(this, HomeActivity::class.java)
                 intent.putExtra("account", account)
                 startActivity(intent)
                 finish()

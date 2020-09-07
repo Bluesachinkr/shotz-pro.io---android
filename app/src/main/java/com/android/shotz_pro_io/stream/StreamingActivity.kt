@@ -1,7 +1,11 @@
 package com.android.shotz_pro_io.stream
 
+import android.app.Service
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
@@ -12,38 +16,69 @@ import android.media.*
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.os.IBinder
 import android.util.Log
 import android.view.Surface
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import com.android.shotz_pro_io.R
+import com.google.api.services.youtube.YouTube
+import net.ossrs.yasea.SrsPublisher
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
+import java.util.jar.Manifest
 import kotlin.experimental.and
 
-class StreamingActivity(
-    mediaProjectionPermissionResultData: Intent,
-    mediaProjectionCallback: MediaProjection.Callback
-) : AppCompatActivity(), ImageReader.OnImageAvailableListener {
+class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableListener {
+
+    private lateinit var mediaProjectionPermissionResultData: Intent
+    private lateinit var mediaProjectionCallback: MediaProjection.Callback
+    private lateinit var youTube: YouTube
+
+    constructor(
+        mediaProjectionPermissionResultData: Intent,
+        mediaProjectionCallback: MediaProjection.Callback,youTube: YouTube
+    ) : this() {
+        this.mediaProjectionPermissionResultData = mediaProjectionPermissionResultData
+        this.mediaProjectionCallback = mediaProjectionCallback
+        this.youTube = youTube
+    }
 
     private val STREAM_REQUEST_CODE = 201
     private val PERMISSION_CODE = 202
+    private val permissios = Array<String>(1, { android.Manifest.permission.RECORD_AUDIO })
+
 
     private var mScreenDensity: Int = 0
     private var frequency = 0
     private var isDisposed: Boolean = false
     private var cancel = false
+    private lateinit var broadcastId: String
+    private lateinit var rtmpUrl: String
 
+    private lateinit var mediaProjectionManager: MediaProjectionManager
+    private lateinit var imageReader: ImageReader
+
+    private var streamerService: StreamingService? = null
     private var mediaProjection: MediaProjection? = null
     private var videoCallback: VideoFrameCallback? = null
     private var audioCallback: AudioFrameCallback? = null
     private var audioThread: Thread? = null
-    private lateinit var mediaProjectionManager: MediaProjectionManager
-    private lateinit var imageReader: ImageReader
+    private val serviceConnection: ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
+            streamerService = StreamingService.LocalBinder().getService() as StreamingService
+            startStreaming()
+        }
+
+        override fun onServiceDisconnected(p0: ComponentName?) {
+            streamerService = null
+        }
+
+    }
 
     private var virtualDisplay: VirtualDisplay? = null
-    private val mediaProjectionPermissionResultData = mediaProjectionPermissionResultData
-    private var mediaProjectionCallback = mediaProjectionCallback
 
     companion object {
         var DISPLAY_WIDTH = 720
@@ -64,14 +99,91 @@ class StreamingActivity(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_streaming)
+        //set context and intent
         context = this
-        mediaProjectionManager =
+        intent?.let {
+            broadcastId = it.getStringExtra(YoutubeApi.BROADCAST_ID_KEY) as String
+            rtmpUrl = it.getStringExtra(YoutubeApi.RTMP_URL_KEY) as String
+        }
+        if (rtmpUrl == null) {
+            finish()
+        }
+        //end getIntent
+
+        setContentView(R.layout.activity_streaming)
+        this.mediaProjectionManager =
             getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         imageReader =
-            ImageReader.newInstance(DISPLAY_WIDTH, DISPLAY_HEIGHT, ImageFormat.FLEX_RGBA_8888, 5)
+            ImageReader.newInstance(DISPLAY_WIDTH, DISPLAY_HEIGHT, ImageFormat.YUV_420_888, 5)
         this.mScreenDensity = resources.displayMetrics.densityDpi
 
+        if (!havePermissions()) {
+            ActivityCompat.requestPermissions(this, permissios, PERMISSION_CODE)
+        }
+
+        if(!bindService(Intent(this,StreamingService::class.java),serviceConnection,
+                BIND_AUTO_CREATE or BIND_DEBUG_UNBIND)){
+            Toast.makeText(this,"Failed to bind streamer services",Toast.LENGTH_LONG).show()
+        }
+
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if(serviceConnection!=null){
+            unbindService(serviceConnection)
+        }
+        stopStreaming()
+    }
+
+    private fun stopStreaming() {
+        streamerService?.let {
+            if (it.isStreaming) {
+                it.stopStreaming()
+            }
+        }
+    }
+
+    private fun startStreaming() {
+        streamerService?.let {
+            if (!it.isStreaming) {
+                if (havePermissions()) {
+                    it.startStreaming(rtmpUrl)
+                    val transition = youTube.LiveBroadcasts().transition("live",broadcastId,"status")
+                    transition.execute()
+                }
+            }
+        }
+    }
+
+    private fun havePermissions(): Boolean {
+        for (permission in permissios) {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    permission
+                ) == PackageManager.PERMISSION_DENIED
+            ) {
+                return false
+            }
+        }
+        return true
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        for (permission in permissions) {
+            if (ActivityCompat.checkSelfPermission(this, permission) ==
+                PackageManager.PERMISSION_DENIED
+            ) {
+                finish()
+            }
+        }
+        streamerService?.let {
+            it.startStreaming(rtmpUrl)
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -85,7 +197,6 @@ class StreamingActivity(
         data?.let {
             mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, it)
             mediaProjection?.registerCallback(mediaProjectionCallback, null)
-            virtualDisplay = createVirtualDisplay()
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
@@ -96,8 +207,9 @@ class StreamingActivity(
                 mediaProjectionManager.createScreenCaptureIntent(),
                 STREAM_REQUEST_CODE
             )
+        }else {
+            createVirtualDisplay()
         }
-        virtualDisplay = createVirtualDisplay()
     }
 
     open fun startAudioStream(frequency: Int) {
@@ -146,15 +258,19 @@ class StreamingActivity(
         }
     }
 
-    private fun createVirtualDisplay(): VirtualDisplay {
-        return mediaProjection!!.createVirtualDisplay(
-            "Stream Activity",
-            DISPLAY_WIDTH,
-            DISPLAY_HEIGHT,
-            mScreenDensity,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader.surface, null, null
-        )
+    private fun createVirtualDisplay(){
+        if(virtualDisplay == null) {
+            virtualDisplay = mediaProjection!!.createVirtualDisplay(
+                "Stream Activity",
+                DISPLAY_WIDTH,
+                DISPLAY_HEIGHT,
+                mScreenDensity,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                imageReader.surface, null, null
+            )
+        }
+        val src =
+        val p = SrsPublisher()
     }
 
     open fun stopVideoStream() {
@@ -212,6 +328,17 @@ class StreamingActivity(
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    open fun endEvent(view: View) {
+        val data = Intent()
+        data.putExtra(YoutubeApi.BROADCAST_ID_KEY, broadcastId)
+        if (parent == null) {
+            setResult(RESULT_OK, data)
+        } else {
+            parent.setResult(RESULT_OK, data)
+        }
+        finish()
     }
 
     interface VideoFrameCallback {
