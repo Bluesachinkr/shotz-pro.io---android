@@ -1,2 +1,4 @@
+include ':RtmpStream'
+include ':library'
 include ':app'
 rootProject.name = "shotz_pro_io"

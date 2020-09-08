@@ -1,48 +1,43 @@
 package com.android.shotz_pro_io.rtmp
 
+import android.hardware.display.DisplayManager
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import android.media.projection.MediaProjection
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
+import com.android.shotz_pro_io.stream.StreamingActivity
 import java.io.IOException
+import java.nio.ByteBuffer
 
-class VideoEncoder : Encoder {
-
-    // H.264 Advanced Video Coding
-    private val MIME_TYPE = "video/avc"
-
-    // 5 seconds between I-frames
-    private val IFRAME_INTERVAL = 5
-
+internal class VideoEncoder : Encoder {
     private var isEncoding = false
-    private val TIMEOUT_USEC = 10000
-
-    private var inputSurface: Surface? = null
+    var inputSurface: Surface? = null
+        private set
     private var encoder: MediaCodec? = null
     private var bufferInfo: MediaCodec.BufferInfo? = null
-    private var listener: VideoHandler.OnVideoEncoderStateListener? = null
-    private var lastFrameEncodedAt: Long = 0
+    private var listener: StreamingActivity.OnVideoEncoderStateListener? = null
+    var lastFrameEncodedAt: Long = 0
+        private set
     private var startStreamingAt: Long = 0
-
-    fun setOnVideoEncoderStateListener(listener: VideoHandler.OnVideoEncoderStateListener?) {
+    fun setOnVideoEncoderStateListener(listener: StreamingActivity.OnVideoEncoderStateListener?) {
         this.listener = listener
-    }
-
-    fun getLastFrameEncodedAt(): Long {
-        return lastFrameEncodedAt
-    }
-
-    fun getInputSurface(): Surface? {
-        return inputSurface
     }
 
     /**
      * prepare the Encoder. call this before start the encoder.
      */
     @Throws(IOException::class)
-    fun prepare(width: Int, height: Int, bitRate: Int, frameRate: Int, startStreamingAt: Long) {
+    fun prepare(
+        width: Int,
+        height: Int,
+        bitRate: Int,
+        frameRate: Int,
+        startStreamingAt: Long,
+        mediaProjection: MediaProjection
+    ) {
         this.startStreamingAt = startStreamingAt
         bufferInfo = MediaCodec.BufferInfo()
         val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height)
@@ -56,6 +51,15 @@ class VideoEncoder : Encoder {
         encoder = MediaCodec.createEncoderByType(MIME_TYPE)
         encoder!!.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         inputSurface = encoder!!.createInputSurface()
+
+        StreamingActivity.virtualDisplay = mediaProjection!!.createVirtualDisplay(
+            "Stream Activity",
+            StreamingActivity.DISPLAY_WIDTH,
+            StreamingActivity.DISPLAY_HEIGHT,
+            StreamingActivity.mScreenDensity,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            inputSurface, null, null
+        )
     }
 
     override fun start() {
@@ -81,21 +85,24 @@ class VideoEncoder : Encoder {
         handler.post(Runnable { // keep running... so use a different thread.
             while (isEncoding) {
                 if (encoder == null) return@Runnable
-                val encoderOutputBuffers = encoder!!.outputBuffers
+                val encoderOutputBuffers: Array<ByteBuffer> = encoder!!.outputBuffers
                 val inputBufferId =
                     encoder!!.dequeueOutputBuffer(bufferInfo!!, TIMEOUT_USEC.toLong())
                 if (inputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     val newFormat = encoder!!.outputFormat
-                    val sps = newFormat.getByteBuffer("csd-0")
-                    val pps = newFormat.getByteBuffer("csd-1")
-                    val config = ByteArray(sps!!.limit() + pps!!.limit())
-                    sps[config, 0, sps.limit()]
-                    pps[config, sps.limit(), pps.limit()]
-                    listener?.onVideoDataEncoded(config, config.size, 0)
+
+                    val sps: ByteBuffer? = newFormat.getByteBuffer("csd-0")
+                    val pps: ByteBuffer? = newFormat.getByteBuffer("csd-1")
+                    if (sps != null && pps != null) {
+                        val config = ByteArray(sps.limit() + pps.limit())
+                        sps.get(config, 0, sps.limit())
+                        pps.get(config, sps.limit(), pps.limit())
+                        listener!!.onVideoDataEncoded(config, config.size, 0)
+                    }
                 } else {
                     if (inputBufferId > 0) {
-                        val encodedData = encoderOutputBuffers[inputBufferId]
-                            ?: continue
+                        val encodedData: ByteBuffer =
+                            encoderOutputBuffers[inputBufferId] ?: continue
                         if (bufferInfo!!.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
                             bufferInfo!!.size = 0
                         }
@@ -105,9 +112,9 @@ class VideoEncoder : Encoder {
                             val currentTime = System.currentTimeMillis()
                             val timestamp = (currentTime - startStreamingAt).toInt()
                             val data = ByteArray(bufferInfo!!.size)
-                            encodedData[data, 0, bufferInfo!!.size]
+                            encodedData.get(data, 0, bufferInfo!!.size)
                             encodedData.position(bufferInfo!!.offset)
-                            listener?.onVideoDataEncoded(data, bufferInfo!!.size, timestamp)
+                            listener!!.onVideoDataEncoded(data, bufferInfo!!.size, timestamp)
                             lastFrameEncodedAt = currentTime
                         }
                         encoder!!.releaseOutputBuffer(inputBufferId, false)
@@ -130,5 +137,14 @@ class VideoEncoder : Encoder {
             encoder!!.release()
             encoder = null
         }
+    }
+
+    companion object {
+        // H.264 Advanced Video Coding
+        private const val MIME_TYPE = "video/avc"
+
+        // 5 seconds between I-frames
+        private const val IFRAME_INTERVAL = 5
+        private const val TIMEOUT_USEC = 10000
     }
 }

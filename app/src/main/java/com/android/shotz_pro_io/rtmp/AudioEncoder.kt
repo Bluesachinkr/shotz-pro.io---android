@@ -18,9 +18,6 @@ internal class AudioEncoder : Encoder {
         this.listener = listener
     }
 
-    /**
-     * prepare the Encoder. call this before start the encoder.
-     */
     fun prepare(bitrate: Int, sampleRate: Int, startStreamingAt: Long) {
         val bufferSize = AudioRecord.getMinBufferSize(
             sampleRate, AudioFormat.CHANNEL_IN_MONO,
@@ -68,10 +65,6 @@ internal class AudioEncoder : Encoder {
         return encoder != null && isEncoding
     }
 
-    /**
-     * enqueue recorded dada from [AudioRecord]
-     * the data will be drained from [AudioEncoder.drain]
-     */
     fun enqueueData(data: ByteArray?, length: Int) {
         if (encoder == null) return
         val bufferRemaining: Int
@@ -90,18 +83,12 @@ internal class AudioEncoder : Encoder {
         }
     }
 
-    /**
-     * drain data from [MediaCodec].
-     * keep draining inside until it stops encoding.
-     * so it would be good to use another thread for this method.
-     */
     private fun drain() {
         val handlerThread = HandlerThread("AudioEncoder-drain")
         handlerThread.start()
         val handler = Handler(handlerThread.looper)
         handler.post {
             val bufferInfo = MediaCodec.BufferInfo()
-            // keep running... so use a different thread.
             while (isEncoding) {
                 val outputBufferId =
                     encoder!!.dequeueOutputBuffer(bufferInfo, TIMEOUT_USEC.toLong())
@@ -118,10 +105,8 @@ internal class AudioEncoder : Encoder {
                     listener?.onAudioDataEncoded(data, bufferInfo.size, timestamp)
                     encoder!!.releaseOutputBuffer(outputBufferId, false)
                 } else if (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    // format should not be changed
                 }
                 if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                    //end of stream
                     break
                 }
             }

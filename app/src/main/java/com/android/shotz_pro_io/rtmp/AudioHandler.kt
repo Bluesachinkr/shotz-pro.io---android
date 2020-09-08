@@ -3,13 +3,13 @@ package com.android.shotz_pro_io.rtmp
 import android.os.Handler
 import android.os.HandlerThread
 
-internal class AudioHandler : AudioRecorder.OnAudioRecorderStateChangedListener {
+class AudioHandler : AudioRecorder.OnAudioRecorderStateChangedListener {
 
     private val handler: Handler
     private val audioEncoder: AudioEncoder
     private val audioRecorder: AudioRecorder
 
-    internal interface OnAudioEncoderStateListener {
+    interface OnAudioEncoderStateListener {
         fun onAudioDataEncoded(data: ByteArray?, size: Int, timestamp: Int)
     }
 

@@ -1,6 +1,5 @@
 package com.android.shotz_pro_io.stream
 
-import android.app.Service
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -8,30 +7,32 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
-import android.graphics.SurfaceTexture
-import android.hardware.Camera
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.*
+import android.media.Image
+import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.opengl.EGLContext
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.IBinder
-import android.util.Log
-import android.view.Surface
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import com.android.shotz_pro_io.R
+import com.android.shotz_pro_io.rtmp.AudioHandler
+import com.android.shotz_pro_io.rtmp.Muxer
+import com.android.shotz_pro_io.rtmp.VideoEncoder
 import com.google.api.services.youtube.YouTube
-import net.ossrs.yasea.SrsPublisher
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.nio.ByteBuffer
-import java.util.jar.Manifest
-import kotlin.experimental.and
 
-class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableListener {
+class StreamingActivity() : AppCompatActivity(),
+    AudioHandler.OnAudioEncoderStateListener {
 
     private lateinit var mediaProjectionPermissionResultData: Intent
     private lateinit var mediaProjectionCallback: MediaProjection.Callback
@@ -39,19 +40,17 @@ class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableLis
 
     constructor(
         mediaProjectionPermissionResultData: Intent,
-        mediaProjectionCallback: MediaProjection.Callback,youTube: YouTube
+        mediaProjectionCallback: MediaProjection.Callback, youTube: YouTube
     ) : this() {
-        this.mediaProjectionPermissionResultData = mediaProjectionPermissionResultData
-        this.mediaProjectionCallback = mediaProjectionCallback
         this.youTube = youTube
     }
+
 
     private val STREAM_REQUEST_CODE = 201
     private val PERMISSION_CODE = 202
     private val permissios = Array<String>(1, { android.Manifest.permission.RECORD_AUDIO })
 
 
-    private var mScreenDensity: Int = 0
     private var frequency = 0
     private var isDisposed: Boolean = false
     private var cancel = false
@@ -63,12 +62,18 @@ class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableLis
 
     private var streamerService: StreamingService? = null
     private var mediaProjection: MediaProjection? = null
-    private var videoCallback: VideoFrameCallback? = null
-    private var audioCallback: AudioFrameCallback? = null
-    private var audioThread: Thread? = null
+    private var muxer: Muxer
+
+    //Audio
+    private var audioHandler: AudioHandler
+
+    //Video
+    private val handler: Handler
+    private val videoEncoder: VideoEncoder
+
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
-            streamerService = StreamingService.LocalBinder().getService() as StreamingService
+            streamerService = StreamingService.LocalBinder().getService()
             startStreaming()
         }
 
@@ -78,23 +83,25 @@ class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableLis
 
     }
 
-    private var virtualDisplay: VirtualDisplay? = null
-
     companion object {
+        private const val FRAME_RATE = 30
         var DISPLAY_WIDTH = 720
         var DISPLAY_HEIGHT = 1280
+        var mScreenDensity: Int = 0
+        var virtualDisplay : VirtualDisplay? = null
         private lateinit var context: StreamingActivity
         fun getInstance(): StreamingActivity {
             return context
         }
     }
 
-    open fun setVideoFrameCallback(videoCallback: VideoFrameCallback) {
-        this.videoCallback = videoCallback
-    }
-
-    open fun setAudioFrameCallback(audioCallback: AudioFrameCallback) {
-        this.audioCallback = audioCallback
+    init {
+        this.audioHandler = AudioHandler()
+        this.videoEncoder = VideoEncoder()
+        val handlerThread = HandlerThread("VideoHandler")
+        handlerThread.start()
+        handler = Handler(handlerThread.looper)
+        this.muxer = Muxer()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,22 +122,25 @@ class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableLis
             getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         imageReader =
             ImageReader.newInstance(DISPLAY_WIDTH, DISPLAY_HEIGHT, ImageFormat.YUV_420_888, 5)
-        this.mScreenDensity = resources.displayMetrics.densityDpi
+        mScreenDensity = resources.displayMetrics.densityDpi
 
         if (!havePermissions()) {
             ActivityCompat.requestPermissions(this, permissios, PERMISSION_CODE)
         }
 
-        if(!bindService(Intent(this,StreamingService::class.java),serviceConnection,
-                BIND_AUTO_CREATE or BIND_DEBUG_UNBIND)){
-            Toast.makeText(this,"Failed to bind streamer services",Toast.LENGTH_LONG).show()
+        if (!bindService(
+                Intent(this, StreamingService::class.java), serviceConnection,
+                BIND_AUTO_CREATE or BIND_DEBUG_UNBIND
+            )
+        ) {
+            Toast.makeText(this, "Failed to bind streamer services", Toast.LENGTH_LONG).show()
         }
 
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if(serviceConnection!=null){
+        if (serviceConnection != null) {
             unbindService(serviceConnection)
         }
         stopStreaming()
@@ -149,7 +159,8 @@ class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableLis
             if (!it.isStreaming) {
                 if (havePermissions()) {
                     it.startStreaming(rtmpUrl)
-                    val transition = youTube.LiveBroadcasts().transition("live",broadcastId,"status")
+                    val transition =
+                        youTube.LiveBroadcasts().transition("live", broadcastId, "status")
                     transition.execute()
                 }
             }
@@ -207,128 +218,67 @@ class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableLis
                 mediaProjectionManager.createScreenCaptureIntent(),
                 STREAM_REQUEST_CODE
             )
-        }else {
-            createVirtualDisplay()
         }
-    }
-
-    open fun startAudioStream(frequency: Int) {
-        this.frequency = frequency
-        this.cancel = false
-
-        //for thread
-        audioThread = Thread(Runnable {
-            recordThread()
-        })
-        audioThread?.start()
-    }
-
-    private fun recordThread() {
-        val audioEncoding = AudioFormat.ENCODING_PCM_16BIT
-        val channelConfiguration = AudioFormat.CHANNEL_CONFIGURATION_STEREO
-        var bufferSize =
-            AudioRecord.getMinBufferSize(frequency, channelConfiguration, audioEncoding)
-
-        val recorder = AudioRecord(
-            MediaRecorder.AudioSource.CAMCORDER, frequency,
-            channelConfiguration, audioEncoding, bufferSize
-        )
-        recorder.startRecording()
-
-        //make buffersize in samples instead of bytes
-        bufferSize /= 2
-        val buffer = ShortArray(bufferSize)
-        while (!cancel) {
-            val bufferReadResult = recorder.read(buffer, 0, bufferSize)
-            if (bufferReadResult > 0) {
-                audioCallback?.onHandleFrame(buffer, bufferReadResult)
-            } else if (bufferReadResult < 0) {
-                Log.w("Streaming Activity", "Error calling recorder.read: " + bufferReadResult);
-            }
-        }
-        recorder.stop()
-    }
-
-    open fun stopAudioStream() {
-        cancel = true
-        try {
-            audioThread?.join()
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun createVirtualDisplay(){
-        if(virtualDisplay == null) {
-            virtualDisplay = mediaProjection!!.createVirtualDisplay(
-                "Stream Activity",
-                DISPLAY_WIDTH,
-                DISPLAY_HEIGHT,
-                mScreenDensity,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                imageReader.surface, null, null
-            )
-        }
-        val src =
-        val p = SrsPublisher()
     }
 
     open fun stopVideoStream() {
+        stop()
         virtualDisplay?.release()
         virtualDisplay = null
     }
 
-    override fun onImageAvailable(reader: ImageReader?) {
-        var image: Image? = null
-        var byteArrayOutputStream: ByteArrayOutputStream? = null
-        try {
-            reader?.let {
-                image = reader.acquireLatestImage()
-                image?.let {
-                    byteArrayOutputStream = ByteArrayOutputStream()
-                    val planes: Array<Image.Plane> = it.planes
-                    val w = it.width
-                    val h = it.height
-                    val pixelStride = planes[0].pixelStride
-                    val rowStride = planes[0].rowStride
-                    val rowPadding = rowStride - pixelStride * w
-                    var offset = 0
-                    val bitmap = Bitmap.createBitmap(
-                        resources.displayMetrics,
-                        w,
-                        h,
-                        Bitmap.Config.ARGB_8888
-                    )
 
-                    val buffer = planes[0].buffer as ByteBuffer
-                    var i = 0
-                    while (++i < h) {
-                        var j = 0
-                        while (++j < w) {
-                            var pixel = 0
-                            pixel = pixel or (buffer[offset].toInt()) shl 16 // R
+    fun start(
+        width: Int, height: Int, bitRate: Int, startStreamingAt: Long
+    ) {
+        handler.post {
+            try {
+                videoEncoder.prepare(
+                    width,
+                    height,
+                    bitRate,
+                    FRAME_RATE,
+                    startStreamingAt,mediaProjection!!
+                )
+                videoEncoder.start()
 
-                            pixel = pixel or (buffer[offset + 1].toInt()) shl 8 // G
-
-                            pixel = pixel or (buffer[offset + 2].toInt()) // B
-
-                            pixel = pixel or (buffer[offset + 3].toInt()) shl 24 // A
-
-                            bitmap.setPixel(i, j, pixel)
-                            offset += pixelStride
-                        }
-                        offset += rowPadding
-                    }
-
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)
-                    val result = byteArrayOutputStream!!.toByteArray()
-                    videoCallback?.onHandleFrame(result)
-                }
+            } catch (ioe: IOException) {
+                throw RuntimeException(ioe)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
+
+    fun stop() {
+        handler?.post {
+            videoEncoder?.let {
+                if (it.isEncoding()) {
+                    it.stop()
+                }
+            }
+        }
+    }
+
+    private val frameInterval: Long
+        private get() = (1000 / FRAME_RATE).toLong()
+
+    /*
+    *  ********** AUDIO STREAMING ****************************
+    */
+    open fun startAudioStream(frequency: Int) {
+        if (muxer.isConnected) {
+            val streamingStartAt = System.currentTimeMillis()
+            audioHandler.start(frequency, streamingStartAt)
+            audioHandler.setOnAudioEncoderStateListener(this)
+        }
+    }
+
+    open fun stopAudioStream() {
+        audioHandler.stop()
+    }
+
+    /*
+    * *****************************************************************************************************************************************************
+    */
 
     open fun endEvent(view: View) {
         val data = Intent()
@@ -341,11 +291,15 @@ class StreamingActivity() : AppCompatActivity(), ImageReader.OnImageAvailableLis
         finish()
     }
 
-    interface VideoFrameCallback {
-        fun onHandleFrame(result: ByteArray)
+    override fun onAudioDataEncoded(data: ByteArray?, size: Int, timestamp: Int) {
+        muxer.sendAudio(data, size, timestamp)
     }
 
-    interface AudioFrameCallback {
-        fun onHandleFrame(data: ShortArray, length: Int)
+    interface OnVideoEncoderStateListener {
+        fun onVideoDataEncoded(data: ByteArray?, size: Int, timestamp: Int)
+    }
+
+    fun setOnVideoEncoderStateListener(listener: OnVideoEncoderStateListener?) {
+        videoEncoder?.setOnVideoEncoderStateListener(listener)
     }
 }

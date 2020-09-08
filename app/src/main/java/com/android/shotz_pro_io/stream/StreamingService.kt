@@ -4,16 +4,14 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
-import net.butterflytv.rtmp_client.RTMPMuxer
 
 class StreamingService : Service() {
     companion object {
         lateinit var mContext: StreamingService
-        lateinit var muxer : RTMPMuxer()
         val AUDIO_SAMPLE_RATE = 44100
     }
 
-     val binder = LocalBinder()
+    val binder = LocalBinder()
     val activity = StreamingActivity.getInstance()
     private val frame_mutex = Object()
     private var encoding = false
@@ -21,7 +19,6 @@ class StreamingService : Service() {
 
     override fun onBind(p0: Intent?): IBinder? {
         mContext = this
-        muxer = RTMPMuxer()
         return binder
     }
 
@@ -32,16 +29,20 @@ class StreamingService : Service() {
             override fun onHandleFrame(result: ByteArray) {
                 if (encoding) {
                     synchronized(frame_mutex) {
-                        val encodedSize = muxer.writeVideo(result,0,result.size,)
+                        val currentTime = System.currentTimeMillis()
+                        val timestamp = (currentTime - RtmpClient.streamingStartAt).toInt()
+                        RtmpClient.listenerVideo?.onVideoDataEncoded(result, result.size, timestamp)
                     }
                 }
             }
         })
         activity.setAudioFrameCallback(object : StreamingActivity.AudioFrameCallback {
-            override fun onHandleFrame(data: ShortArray, length: Int) {
+            override fun onHandleFrame(data: ByteArray, length: Int) {
                 if (encoding) {
                     synchronized(frame_mutex) {
-                        val encodedSize = Ffmpeg.encodeAudioFrame(length, data)
+                        val currentTime = System.currentTimeMillis()
+                        val timestamp = (currentTime - RtmpClient.streamingStartAt).toInt()
+                        RtmpClient.listenerAudio?.onAudioDataEncoded(data, length, timestamp)
                     }
                 }
             }
@@ -49,8 +50,6 @@ class StreamingService : Service() {
         synchronized(frame_mutex) {
             activity.startVideoStream()
             activity.startAudioStream(AUDIO_SAMPLE_RATE)
-            Ffmpeg.init(1280,720,AUDIO_SAMPLE_RATE, streamUrl)
-
         }
     }
 
@@ -59,9 +58,6 @@ class StreamingService : Service() {
         activity.stopAudioStream()
         encoding = false
         isStreaming = false
-        if (encoding) {
-            Ffmpeg.shutDown()
-        }
     }
 
     class LocalBinder : Binder() {
