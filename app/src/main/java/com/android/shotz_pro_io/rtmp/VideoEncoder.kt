@@ -1,6 +1,7 @@
 package com.android.shotz_pro_io.rtmp
 
 import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -8,58 +9,84 @@ import android.media.projection.MediaProjection
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
-import com.android.shotz_pro_io.stream.StreamingActivity
 import java.io.IOException
 import java.nio.ByteBuffer
 
-internal class VideoEncoder : Encoder {
+internal class VideoEncoder(mediaProjection: MediaProjection) : Encoder {
+
+    private val mediaProjection = mediaProjection
+
     private var isEncoding = false
-    var inputSurface: Surface? = null
-        private set
+    private var inputSurface: Surface? = null
     private var encoder: MediaCodec? = null
     private var bufferInfo: MediaCodec.BufferInfo? = null
-    private var listener: StreamingActivity.OnVideoEncoderStateListener? = null
-    var lastFrameEncodedAt: Long = 0
-        private set
+    private var virtualDisplay: VirtualDisplay? = null
+    private var mDensity: Int = 0
+    private var mWidth: Int = 0
+    private var mHeight: Int = 0
+    private var mBitrate: Int = 0
+    private var mFrameRate: Int = 0
+    private var listener: VideoHandler.OnVideoEncoderStateListener? = null
+    private var lastFrameEncodedAt: Long = 0
     private var startStreamingAt: Long = 0
-    fun setOnVideoEncoderStateListener(listener: StreamingActivity.OnVideoEncoderStateListener?) {
+
+    companion object {
+        private const val MIME_TYPE = "video/avc"
+        private const val IFRAME_INTERVAL = 5
+        private const val TIMEOUT_USEC = 10000
+    }
+
+    fun setOnVideoEncoderStateListener(listener: VideoHandler.OnVideoEncoderStateListener?) {
         this.listener = listener
     }
 
-    /**
-     * prepare the Encoder. call this before start the encoder.
-     */
+    fun getLastFrameEncodedAt(): Long {
+        return lastFrameEncodedAt
+    }
+
+    fun getInputSurface(): Surface? {
+        return inputSurface
+    }
+
     @Throws(IOException::class)
     fun prepare(
         width: Int,
         height: Int,
         bitRate: Int,
         frameRate: Int,
-        startStreamingAt: Long,
-        mediaProjection: MediaProjection
+        startStreamingAt: Long, density: Int
     ) {
         this.startStreamingAt = startStreamingAt
-        bufferInfo = MediaCodec.BufferInfo()
-        val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height)
+        this.mWidth = width
+        this.mHeight = height
+        this.mBitrate = bitRate
+        this.mFrameRate = frameRate
+        this.mDensity = density
+        this.bufferInfo = MediaCodec.BufferInfo()
+        val format = MediaFormat.createVideoFormat(MIME_TYPE, mWidth, mHeight)
         format.setInteger(
             MediaFormat.KEY_COLOR_FORMAT,
             MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
         )
-        format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, frameRate)
+        format.setInteger(MediaFormat.KEY_BIT_RATE, mBitrate)
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, mFrameRate)
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL)
-        encoder = MediaCodec.createEncoderByType(MIME_TYPE)
-        encoder!!.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        inputSurface = encoder!!.createInputSurface()
 
-        StreamingActivity.virtualDisplay = mediaProjection!!.createVirtualDisplay(
-            "Stream Activity",
-            StreamingActivity.DISPLAY_WIDTH,
-            StreamingActivity.DISPLAY_HEIGHT,
-            StreamingActivity.mScreenDensity,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            inputSurface, null, null
-        )
+        encoder = MediaCodec.createEncoderByType(MIME_TYPE)
+        encoder?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        inputSurface = encoder?.createInputSurface()
+        inputSurface?.let {
+            virtualDisplay = mediaProjection.createVirtualDisplay(
+                "Capturing Display",
+                mWidth,
+                mHeight,
+                mDensity,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                it,
+                null,
+                null
+            )
+        }
     }
 
     override fun start() {
@@ -133,18 +160,9 @@ internal class VideoEncoder : Encoder {
     private fun release() {
         if (encoder != null) {
             isEncoding = false
-            encoder!!.stop()
-            encoder!!.release()
+            encoder?.stop()
+            encoder?.release()
             encoder = null
         }
-    }
-
-    companion object {
-        // H.264 Advanced Video Coding
-        private const val MIME_TYPE = "video/avc"
-
-        // 5 seconds between I-frames
-        private const val IFRAME_INTERVAL = 5
-        private const val TIMEOUT_USEC = 10000
     }
 }

@@ -5,19 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.opengl.EGLContext
 import android.os.Bundle
-import android.os.Handler
-import android.os.HandlerThread
 import android.os.IBinder
+import android.view.Surface
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -25,26 +21,24 @@ import androidx.core.app.ActivityCompat
 import com.android.shotz_pro_io.R
 import com.android.shotz_pro_io.rtmp.AudioHandler
 import com.android.shotz_pro_io.rtmp.Muxer
-import com.android.shotz_pro_io.rtmp.VideoEncoder
+import com.android.shotz_pro_io.rtmp.PublisherListener
+import com.android.shotz_pro_io.rtmp.VideoHandler
 import com.google.api.services.youtube.YouTube
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-import java.nio.ByteBuffer
 
 class StreamingActivity() : AppCompatActivity(),
-    AudioHandler.OnAudioEncoderStateListener {
+    AudioHandler.OnAudioEncoderStateListener, VideoHandler.OnVideoEncoderStateListener,PublisherListener {
 
-    private lateinit var mediaProjectionPermissionResultData: Intent
-    private lateinit var mediaProjectionCallback: MediaProjection.Callback
-    private lateinit var youTube: YouTube
+    private val mediaProjectionCallback: MediaProjection.Callback = object : MediaProjection.Callback(){
+        override fun onStop() {
+            mediaProjection?.stop()
+            mediaProjection = null
+        }
+    }
+    private var youTube: YouTube? = null
 
-    constructor(
-        mediaProjectionPermissionResultData: Intent,
-        mediaProjectionCallback: MediaProjection.Callback, youTube: YouTube
-    ) : this() {
+    constructor(youTube: YouTube): this(){
         this.youTube = youTube
     }
-
 
     private val STREAM_REQUEST_CODE = 201
     private val PERMISSION_CODE = 202
@@ -68,8 +62,7 @@ class StreamingActivity() : AppCompatActivity(),
     private var audioHandler: AudioHandler
 
     //Video
-    private val handler: Handler
-    private val videoEncoder: VideoEncoder
+    private var videoHandler: VideoHandler
 
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(p0: ComponentName?, p1: IBinder?) {
@@ -84,11 +77,10 @@ class StreamingActivity() : AppCompatActivity(),
     }
 
     companion object {
-        private const val FRAME_RATE = 30
-        var DISPLAY_WIDTH = 720
-        var DISPLAY_HEIGHT = 1280
+        var DISPLAY_WIDTH = 640
+        var DISPLAY_HEIGHT = 480
         var mScreenDensity: Int = 0
-        var virtualDisplay : VirtualDisplay? = null
+        var virtualDisplay: VirtualDisplay? = null
         private lateinit var context: StreamingActivity
         fun getInstance(): StreamingActivity {
             return context
@@ -97,10 +89,7 @@ class StreamingActivity() : AppCompatActivity(),
 
     init {
         this.audioHandler = AudioHandler()
-        this.videoEncoder = VideoEncoder()
-        val handlerThread = HandlerThread("VideoHandler")
-        handlerThread.start()
-        handler = Handler(handlerThread.looper)
+        this.videoHandler = VideoHandler()
         this.muxer = Muxer()
     }
 
@@ -138,48 +127,6 @@ class StreamingActivity() : AppCompatActivity(),
 
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (serviceConnection != null) {
-            unbindService(serviceConnection)
-        }
-        stopStreaming()
-    }
-
-    private fun stopStreaming() {
-        streamerService?.let {
-            if (it.isStreaming) {
-                it.stopStreaming()
-            }
-        }
-    }
-
-    private fun startStreaming() {
-        streamerService?.let {
-            if (!it.isStreaming) {
-                if (havePermissions()) {
-                    it.startStreaming(rtmpUrl)
-                    val transition =
-                        youTube.LiveBroadcasts().transition("live", broadcastId, "status")
-                    transition.execute()
-                }
-            }
-        }
-    }
-
-    private fun havePermissions(): Boolean {
-        for (permission in permissios) {
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    permission
-                ) == PackageManager.PERMISSION_DENIED
-            ) {
-                return false
-            }
-        }
-        return true
-    }
-
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -208,9 +155,64 @@ class StreamingActivity() : AppCompatActivity(),
         data?.let {
             mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, it)
             mediaProjection?.registerCallback(mediaProjectionCallback, null)
+            prepareStream()
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
+
+    fun open(url : String){
+        muxer.open(url, DISPLAY_WIDTH, DISPLAY_HEIGHT)
+    }
+
+    /*
+    * ********* Capturing ball ***********************************
+    */
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (serviceConnection != null) {
+            unbindService(serviceConnection)
+        }
+        stopStreaming()
+    }
+
+    private fun stopStreaming() {
+        streamerService?.let {
+            if (it.isStreaming) {
+                it.stopStreaming()
+            }
+        }
+    }
+
+    private fun startStreaming() {
+        streamerService?.let {
+            if (!it.isStreaming) {
+                if (havePermissions()) {
+                    it.startStreaming(rtmpUrl)
+                    /*val transition =
+                        youTube?.LiveBroadcasts()?.transition("live", broadcastId, "status")
+                    transition?.execute()*/
+                }
+            }
+        }
+    }
+
+    private fun havePermissions(): Boolean {
+        for (permission in permissios) {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    permission
+                ) == PackageManager.PERMISSION_DENIED
+            ) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /*
+    ******** Video Stream *********************
+    */
 
     open fun startVideoStream() {
         if (mediaProjection == null) {
@@ -218,48 +220,34 @@ class StreamingActivity() : AppCompatActivity(),
                 mediaProjectionManager.createScreenCaptureIntent(),
                 STREAM_REQUEST_CODE
             )
+        }else {
+            prepareStream()
         }
     }
 
     open fun stopVideoStream() {
-        stop()
+        videoHandler.stop()
         virtualDisplay?.release()
         virtualDisplay = null
     }
 
-
-    fun start(
-        width: Int, height: Int, bitRate: Int, startStreamingAt: Long
-    ) {
-        handler.post {
-            try {
-                videoEncoder.prepare(
-                    width,
-                    height,
-                    bitRate,
-                    FRAME_RATE,
-                    startStreamingAt,mediaProjection!!
-                )
-                videoEncoder.start()
-
-            } catch (ioe: IOException) {
-                throw RuntimeException(ioe)
+    fun prepareStream(){
+        mediaProjection?.let {
+            muxer.setOnMuxerStateListener(this)
+            val startStreamingAt = System.currentTimeMillis()
+            videoHandler.setOnVideoEncoderStateListener(this)
+            val surface = videoHandler.start(DISPLAY_WIDTH, DISPLAY_HEIGHT, mScreenDensity, startStreamingAt, it)
+            surface?.let {
+                virtualDisplay = createVirtualDisplay(it)
             }
         }
     }
 
-    fun stop() {
-        handler?.post {
-            videoEncoder?.let {
-                if (it.isEncoding()) {
-                    it.stop()
-                }
-            }
-        }
+    private fun createVirtualDisplay(surface: Surface) : VirtualDisplay{
+        return mediaProjection!!.createVirtualDisplay("Stream Activity", DISPLAY_WIDTH,
+            DISPLAY_HEIGHT, mScreenDensity, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,surface,null,null)
     }
 
-    private val frameInterval: Long
-        private get() = (1000 / FRAME_RATE).toLong()
 
     /*
     *  ********** AUDIO STREAMING ****************************
@@ -295,11 +283,21 @@ class StreamingActivity() : AppCompatActivity(),
         muxer.sendAudio(data, size, timestamp)
     }
 
-    interface OnVideoEncoderStateListener {
-        fun onVideoDataEncoded(data: ByteArray?, size: Int, timestamp: Int)
+    override fun onVideoDataEncoded(data: ByteArray?, size: Int, timestamp: Int) {
+        muxer.sendVideo(data, size, timestamp)
     }
 
-    fun setOnVideoEncoderStateListener(listener: OnVideoEncoderStateListener?) {
-        videoEncoder?.setOnVideoEncoderStateListener(listener)
+    override fun onStarted() {
+
+    }
+
+    override fun onStopped() {
+    }
+
+    override fun onDisconnected() {
+    }
+
+    override fun onFailedToConnect() {
+
     }
 }

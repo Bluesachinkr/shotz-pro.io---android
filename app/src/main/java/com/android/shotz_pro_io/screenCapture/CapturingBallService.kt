@@ -9,13 +9,16 @@ import android.view.*
 import android.widget.*
 import com.android.shotz_pro_io.LoginActivity
 import com.android.shotz_pro_io.R
+import com.bumptech.glide.Glide
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.mikhaellopez.circularimageview.CircularImageView
 
 class CapturingBallService : Service(), View.OnTouchListener, View.OnClickListener {
     private lateinit var windowManager: WindowManager
     private lateinit var mBallView: View
     private lateinit var mStreamController: View
     private lateinit var accountImageLayout: FrameLayout
+    private lateinit var accountImage : CircularImageView
     private lateinit var live_stream_panel_after: LinearLayout
     private lateinit var liveBtn_streamController: Button
     private var initialX = 0
@@ -86,8 +89,8 @@ class CapturingBallService : Service(), View.OnTouchListener, View.OnClickListen
         mBallView?.let {
             val accountImageLayout = it.findViewById<FrameLayout>(R.id.controlLayout)
             accountImageLayout.setOnTouchListener(this)
-            val image = it.findViewById<ImageView>(R.id.bubble_account_image_view)
-            image.setOnTouchListener(this)
+            accountImage = it.findViewById<CircularImageView>(R.id.bubble_account_image_view)
+            accountImage.setOnTouchListener(this)
         }
         liveBtn_streamController.setOnClickListener(this)
     }
@@ -174,6 +177,9 @@ class CapturingBallService : Service(), View.OnTouchListener, View.OnClickListen
 
     private fun hasGoogleSignIn(): Boolean {
         val account = GoogleSignIn.getLastSignedInAccount(this)
+        account?.let {
+            Glide.with(this).load(it.photoUrl).into(accountImage)
+        }
         return account != null
     }
 }

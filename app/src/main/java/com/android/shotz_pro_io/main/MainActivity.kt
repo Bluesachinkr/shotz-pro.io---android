@@ -37,7 +37,8 @@ import com.mikhaellopez.circularimageview.CircularImageView
 import java.util.*
 
 
-class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedListener,GoogleApiClient.ConnectionCallbacks{
+class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedListener,
+    GoogleApiClient.ConnectionCallbacks {
 
     private val PERMISSION_CODE = 201
 
@@ -45,8 +46,8 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
     private lateinit var container: FrameLayout
     private lateinit var accountImage: CircularImageView
     private lateinit var accountName: TextView
-    private lateinit var gso : GoogleSignInOptions
-    private lateinit var googleSignInClient : GoogleApiClient
+    private lateinit var gso: GoogleSignInOptions
+    private lateinit var googleSignInClient: GoogleApiClient
 
     private lateinit var credential: GoogleAccountCredential
     private lateinit var listFragment: Fragment
@@ -65,6 +66,7 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
     companion object {
         val scopes = mutableListOf(Scopes.PROFILE, YouTubeScopes.YOUTUBE)
         val ACCOUNT_KEY = "Account key"
+        private var youSelect: YouTube? = null
         var mContext: MainActivity? = null
         val PREF_ACCOUNT_NAME = "accountName"
         val SIGN_IN = 500
@@ -101,9 +103,10 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
             GoogleAccountCredential.usingOAuth2(this, scopes).setBackOff(ExponentialBackOff())
 
         //google sign in
-        gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestEmail().requestProfile().build()
+        gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestEmail()
+            .requestProfile().build()
         googleSignInClient = GoogleApiClient.Builder(this)
-            .addApi(Auth.GOOGLE_SIGN_IN_API,gso)
+            .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
             .addConnectionCallbacks(this)
             .setAccountName(mChooseAccuntName)
             .addOnConnectionFailedListener(this)
@@ -111,7 +114,13 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
 
         signIn()
 
-        listFragment = VideosFragment(this, accountImage, accountName, selectedEventCallback,googleSignInClient)
+        listFragment = VideosFragment(
+            this,
+            accountImage,
+            accountName,
+            selectedEventCallback,
+            googleSignInClient
+        )
         getApiRequest()
         supportFragmentManager.beginTransaction().add(R.id.containerMain, listFragment).commit()
     }
@@ -153,7 +162,7 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
-            SIGN_IN->{
+            SIGN_IN -> {
                 val result = Auth.GoogleSignInApi.getSignInResultFromIntent(data)
                 result?.let {
                     handleSignIn(it)
@@ -245,11 +254,13 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
     private fun startStreaming(event: EventData) {
         val broadcastId = event.getId()
         StartEventTask(credential).execute(broadcastId)
-        val intent = Intent(this, StreamingActivity()::class.java).also {
-            it.putExtra(YoutubeApi.RTMP_URL_KEY, event.mIngestionAddress)
-            it.putExtra(YoutubeApi.BROADCAST_ID_KEY, broadcastId)
+        youSelect?.let {
+            val intent = Intent(this, StreamingActivity(it)::class.java).also {
+                it.putExtra(YoutubeApi.RTMP_URL_KEY, event.mIngestionAddress)
+                it.putExtra(YoutubeApi.BROADCAST_ID_KEY, broadcastId)
+            }
+            startActivityForResult(intent, HomeActivity.REQUEST_STREAMER)
         }
-        startActivityForResult(intent, HomeActivity.REQUEST_STREAMER)
     }
 
     private fun acquireGooglePlayServices() {
@@ -370,10 +381,9 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
             mContext?.let {
                 try {
                     return YoutubeApi.getLiveEvents(youTube)
-                }
-                catch (e: UserRecoverableAuthIOException) {
+                } catch (e: UserRecoverableAuthIOException) {
                     mContext?.startActivityForResult(e.intent, REQUEST_AUTHORIZATION)
-                }catch (e: Exception) {
+                } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
@@ -397,6 +407,7 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
             val jsonFactory = JacksonFactory.getDefaultInstance()
             youTube = YouTube.Builder(transport, jsonFactory, credential)
                 .setApplicationName(HomeActivity.APP_NAME).build()
+            MainActivity.youSelect = youTube
         }
 
         override fun onPreExecute() {
@@ -416,10 +427,9 @@ class MainActivity : AppCompatActivity() ,GoogleApiClient.OnConnectionFailedList
                     params[0]?.let {
                         YoutubeApi.startEvent(youTube, it)
                     }
-                }
-                catch (e: UserRecoverableAuthIOException) {
+                } catch (e: UserRecoverableAuthIOException) {
                     mContext?.startActivityForResult(e.intent, REQUEST_AUTHORIZATION)
-                }catch (e: Exception) {
+                } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }

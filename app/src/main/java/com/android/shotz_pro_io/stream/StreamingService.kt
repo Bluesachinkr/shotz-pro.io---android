@@ -1,68 +1,169 @@
 package com.android.shotz_pro_io.stream
 
-import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.hardware.display.DisplayManager
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.Binder
 import android.os.IBinder
+import android.util.DisplayMetrics
+import android.view.Display
+import com.android.shotz_pro_io.rtmp.Publisher
+import com.android.shotz_pro_io.rtmp.PublisherListener
+import java.lang.Exception
 
-class StreamingService : Service() {
+class StreamingService : BaseService(), PublisherListener {
     companion object {
         lateinit var mContext: StreamingService
+        val KEY_NOTIFY_MSG = "stream service notify"
+        val NOTIFY_MSG_CONNECTION_FAILED = "Stream connection failed"
+        val NOTIFY_MSG_CONNECTION_STARTED = "Stream started"
+        val NOTIFY_MSG_ERROR = "Stream connection error!"
+        val NOTIFY_MSG_UPDATED_STREAM_PROFILE = "Updated stream profile"
+        val NOTIFY_MSG_CONNECTION_DISCONNECTED = "Connection disconnected!"
+        val NOTIFY_MSG_STREAM_STOPPED = "Stream stopped"
+        val NOTIFY_MSG_REQUEST_START = "Request start stream"
+        val NOTIFY_MSG_REQUEST_STOP = "Request stop stream"
         val AUDIO_SAMPLE_RATE = 44100
     }
 
     val binder = LocalBinder()
+    private val TAG = "Streaming Service"
     val activity = StreamingActivity.getInstance()
     private val frame_mutex = Object()
-    private var encoding = false
     open var isStreaming = false
 
-    override fun onBind(p0: Intent?): IBinder? {
-        mContext = this
+    private var mediaProjection: MediaProjection? = null
+    private var mediaProjectionManager: MediaProjectionManager? = null
+    private var mPublisher: Publisher? = null
+    private var mScreenCaptureIntent: Intent? = null
+    private var mScreenCaptureResultCode = 0
+    private var mScreenWidth: Int = 0
+    private var mScreenHeight: Int = 0
+    private var mScreenDensity: Int = 0
+
+    override fun onCreate() {
+        super.onCreate()
+        mediaProjectionManager =
+            getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+    }
+
+    fun getScreenSize() {
+        val displayMetrics = DisplayMetrics()
+        mScreenDensity = displayMetrics.density.toInt()
+        var w = displayMetrics.widthPixels
+        var h = displayMetrics.heightPixels
+        if (w > h) {
+            val s_x = w / 1920f
+            val s_y = h / 1080f
+            val s = Math.max(s_x, s_y)
+            w = (w / s).toInt()
+            h = (h / s).toInt()
+        } else {
+            val s_x = w / 1080f
+            val s_y = h / 1920f
+            val s = Math.max(s_x, s_y)
+            w = (w / s).toInt()
+            h = (h / s).toInt()
+        }
+
+        if (w > h) {
+            mScreenWidth = w
+            mScreenHeight = h
+        } else {
+            mScreenWidth = h
+            mScreenHeight = w
+        }
+    }
+
+    override fun onBind(intent: Intent): IBinder? {
+        mScreenCaptureIntent = intent.getParcelableExtra(Intent.EXTRA_INTENT)
+        mScreenCaptureIntent?.let {
+            mScreenCaptureResultCode = it.getIntExtra(
+                "SCREEN_CAPTURE_INTENT_RESULT_CODE",
+                -999999
+            )
+        }
+
+        getScreenSize()
+        mScreenCaptureIntent?.let {
+            mediaProjection = mediaProjectionManager?.getMediaProjection(
+                mScreenCaptureResultCode,
+                it
+            )
+        }
+        val dm = getSystemService(DISPLAY_SERVICE) as DisplayManager
+        val defaultDisplay: Display?
+        defaultDisplay = if (dm != null) {
+            dm.getDisplay(Display.DEFAULT_DISPLAY)
+        } else {
+            throw IllegalStateException("Cannot display manager?!?")
+        }
+        if (defaultDisplay == null) {
+            throw RuntimeException("No display found.")
+        }
+
         return binder
     }
 
     open fun startStreaming(streamUrl: String) {
-        encoding = true
-        isStreaming = true
-        activity.setVideoFrameCallback(object : StreamingActivity.VideoFrameCallback {
-            override fun onHandleFrame(result: ByteArray) {
-                if (encoding) {
-                    synchronized(frame_mutex) {
-                        val currentTime = System.currentTimeMillis()
-                        val timestamp = (currentTime - RtmpClient.streamingStartAt).toInt()
-                        RtmpClient.listenerVideo?.onVideoDataEncoded(result, result.size, timestamp)
-                    }
-                }
-            }
-        })
-        activity.setAudioFrameCallback(object : StreamingActivity.AudioFrameCallback {
-            override fun onHandleFrame(data: ByteArray, length: Int) {
-                if (encoding) {
-                    synchronized(frame_mutex) {
-                        val currentTime = System.currentTimeMillis()
-                        val timestamp = (currentTime - RtmpClient.streamingStartAt).toInt()
-                        RtmpClient.listenerAudio?.onAudioDataEncoded(data, length, timestamp)
-                    }
-                }
-            }
-        })
         synchronized(frame_mutex) {
-            activity.startVideoStream()
-            activity.startAudioStream(AUDIO_SAMPLE_RATE)
+            if (mPublisher == null) {
+                try {
+                    mediaProjection?.let {
+                        mPublisher = Publisher.Builder().setUrl(streamUrl)
+                            .setWidth(mScreenWidth)
+                            .setHeight(mScreenHeight)
+                            .setAudioBitrate(Publisher.Builder.DEFAULT_AUDIO_BITRATE)
+                            .setVideoBitrate(Publisher.Builder.DEFAULT_VIDEO_BITRATE)
+                            .setMediaProjection(it)
+                            .setPublisherListener(this)
+                            .build()
+                    }
+                    mPublisher?.let {
+                        it.startPublishing()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else {
+                mPublisher?.startPublishing()
+            }
         }
     }
 
     open fun stopStreaming() {
-        activity.stopVideoStream()
-        activity.stopAudioStream()
-        encoding = false
-        isStreaming = false
+        mPublisher?.let {
+            if (it.isPublishing()!!) {
+                it.stopPublishing()
+            }
+        }
     }
 
     class LocalBinder : Binder() {
         fun getService(): StreamingService {
             return mContext
         }
+    }
+
+    override fun startPerformService(streamUrl: String) {
+        startStreaming(streamUrl)
+    }
+
+    override fun stopPerformService() {
+        stopStreaming()
+    }
+
+    override fun onStarted() {
+    }
+
+    override fun onStopped() {
+    }
+
+    override fun onDisconnected() {
+    }
+
+    override fun onFailedToConnect() {
     }
 }
