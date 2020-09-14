@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Shotz Pro</string>
     <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
 
     <string name="login_preference">login_p</string>
     <string name="login_preference_status">login_p_s</string>
@@ -12,4 +11,40 @@
     <string name="endEvent">END EVENT</string>
     <string name="startingEvent">Starting event. Please wait…</string>
     <string name="endingEvent">Ending event. Please wait…</string>
+
+
+    <!--Video settings-->
+    <string name="setting_video_bitrate">setting_video_bitrate</string>
+    <string name="setting_video_resolution">setting_video_resolution</string>
+    <string name="setting_video_fps">setting_video_fps</string>
+
+    <!--Camera settings-->
+    <string name="setting_camera_mode">setting_camera_mode</string>
+    <string name="setting_camera_position">setting_camera_position</string>
+    <string name="setting_camera_size">setting_camera_size</string>
+
+    <!--Audio settings-->
+    <string name="setting_audio_source">setting_audio_source</string>
+
+
+    <!--Common Setting-->
+    <string name="setting_common_orientation">setting_common_orientation</string>
+    <string name="setting_common_countdown">setting_common_countdown</string>
+
+    <!--Default setting-->
+    <string name="default_setting_resolution">Default</string>
+    <string name="default_setting_bitrate">-1</string>
+    <string name="default_setting_fps">30</string>
+    <string name="default_setting_countdown">3</string>
+    <string name="default_setting_orientation">Auto</string>
+    <string name="default_camera_mode">Front</string>
+    <string name="default_camera_position">Bottom Right</string>
+    <string name="default_camera_size">Medium</string>
+    <string name="default_audio_source">Microphone</string>
+    <string name="file_created">File created</string>
+    <string name="file_create_error">File create error</string>
+    <string name="pref_drive_folderId">pref_drive_folderId</string>
+
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+
 </resources>

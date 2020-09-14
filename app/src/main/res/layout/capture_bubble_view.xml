@@ -17,8 +17,8 @@
 
         <com.mikhaellopez.circularimageview.CircularImageView
             android:id="@+id/recordBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
             android:padding="4dp"
             android:src="@drawable/ic_video_setting"
             app:civ_border_color="@color/white"
@@ -27,8 +27,8 @@
 
         <com.mikhaellopez.circularimageview.CircularImageView
             android:id="@+id/closeBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
             android:layout_marginTop="8dp"
             android:padding="4dp"
             android:src="@drawable/ic_close"
@@ -38,8 +38,8 @@
 
         <com.mikhaellopez.circularimageview.CircularImageView
             android:id="@+id/streamBtn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
             android:layout_marginTop="8dp"
             android:padding="4dp"
             android:src="@drawable/ic_stream"
@@ -50,8 +50,8 @@
 
     <com.mikhaellopez.circularimageview.CircularImageView
         android:id="@+id/bubble_account_image_view"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
         android:src="@drawable/ic_account"
         android:visibility="visible" />
 

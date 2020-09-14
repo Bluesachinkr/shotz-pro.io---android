@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/recording"
+        android:title="Recording"
+        android:icon="@drawable/ic_stream"/>
+
+    <item
+        android:id="@+id/streaming"
+        android:title="Streaming"
+        android:icon="@drawable/ic_web"/>
+
+    <item
+        android:id="@+id/settings"
+        android:title="Settings"
+        android:icon="@drawable/ic_settings"/>
+
+</menu>

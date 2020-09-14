@@ -7,14 +7,14 @@
     <RelativeLayout
         android:id="@+id/live_stream_panel_before"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="56dp"
         android:background="#232323">
 
         <LinearLayout
             android:id="@+id/live_watching_layout"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="gone"
+            android:visibility="visible"
             android:layout_alignParentLeft="true"
             android:layout_marginLeft="8dp"
             android:layout_marginTop="8dp"
@@ -24,17 +24,19 @@
             <ImageView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:visibility="gone"
                 android:src="@drawable/ic_live_watching" />
 
             <TextView
-                android:id="@+id/live_watching"
+                android:id="@+id/healthStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
+                android:textColor="@color/colorAccent"
                 android:text=""
-                android:textColor="@color/red"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:layout_centerHorizontal="true"
+                android:layout_centerVertical="true"
+                android:textSize="18sp"/>
 
         </LinearLayout>
 
@@ -56,9 +58,9 @@
             android:layout_height="wrap_content"
             android:textStyle="bold"
             android:textSize="18sp"
-            android:visibility="gone"
+            android:visibility="visible"
             android:textColor="@color/white"
-            android:layout_alignParentRight="true"
+            android:layout_toLeftOf="@id/liveBtn_streamController"
             android:layout_centerVertical="true"
             android:layout_margin="8dp"/>
 
@@ -70,12 +72,13 @@
         android:layout_height="wrap_content"
         android:background="#232323"
         android:weightSum="4"
-        android:visibility="gone"
+        android:visibility="visible"
         android:paddingBottom="8dp"
         android:paddingTop="8dp"
         android:orientation="horizontal">
 
         <RelativeLayout
+            android:id="@+id/camera_open_close_panel"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content">
@@ -84,11 +87,12 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_centerHorizontal="true"
-                android:src="@drawable/ic_pause_recording"/>
+                android:src="@drawable/ic_cam"/>
 
         </RelativeLayout>
 
         <RelativeLayout
+            android:id="@+id/live_chats_panel"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content">
@@ -97,11 +101,12 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_centerHorizontal="true"
-                android:src="@drawable/ic_stop_recording"/>
+                android:src="@drawable/ic_live_chats"/>
 
         </RelativeLayout>
 
         <RelativeLayout
+            android:id="@+id/setting_stream_panel"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content">
@@ -110,11 +115,12 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_centerHorizontal="true"
-                android:src="@drawable/ic_stream"/>
+                android:src="@drawable/ic_settings"/>
 
         </RelativeLayout>
 
         <RelativeLayout
+            android:id="@+id/close_stream_panel"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content">

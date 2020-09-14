@@ -6,35 +6,26 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.BaseAdapter
-import android.widget.GridView
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.android.shotz_pro_io.R
 import com.android.shotz_pro_io.adapter.VideoAdapter
 import com.android.shotz_pro_io.stream.EventData
-import com.bumptech.glide.Glide
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.api.GoogleApiClient
-import com.google.android.gms.plus.Plus
-import kotlinx.android.synthetic.main.activity_home.*
 import java.io.File
 
 class VideosFragment(
     mContext: Context,
     accountImage: ImageView,
-    profileName: TextView,
-    callbacks: MainActivity.CallbackVideo,googleApiClient: GoogleApiClient
+    callbacks: MainActivity.CallbackVideo, googleApiClient: GoogleApiClient
 ) : Fragment(), GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
     private val mContext = mContext
     private lateinit var videosRecyclerView: RecyclerView
     private val accountImage = accountImage
-    private val profileName = profileName
     private lateinit var adapter: VideoAdapter
     private var mEvents = mutableListOf<EventData>()
     private val callbacks = callbacks

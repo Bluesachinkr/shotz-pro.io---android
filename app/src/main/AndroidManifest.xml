@@ -25,15 +25,12 @@
             </intent-filter>
         </activity>
         <activity android:name=".LoginActivity" />
-        <activity android:name=".screenCapture.ScreenRecordingActivity" />
-        <activity android:name=".main.HomeActivity">
+        <activity android:name=".recording.ScreenRecordingActivity" />
 
-        </activity>
-
-        <receiver android:name=".screenCapture.NotificationReceiver" />
+        <receiver android:name=".recording.NotificationReceiver" />
 
         <service
-            android:name=".screenCapture.CapturingBallService"
+            android:name=".stream.StreamingControllerService"
             android:enabled="true"
             android:exported="false" />
         <service

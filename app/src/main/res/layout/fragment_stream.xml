@@ -1,14 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/black"
+    android:orientation="vertical"
     tools:context=".main.StreamFragment">
 
-    <!-- TODO: Update blank fragment layout -->
+    <Button
+        android:id="@+id/startStream_btn"
+        android:layout_width="match_parent"
+        android:background="@color/colorPrimary"
+        android:layout_margin="16dp"
+        android:text="Start Stream"
+        android:layout_height="?actionBarSize"/>
+
     <TextView
+        android:id="@+id/status_stream"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:text="@string/hello_blank_fragment" />
-
-</FrameLayout>
+        android:layout_margin="16dp"
+        android:background="@drawable/background_status_stream"/>
+</LinearLayout>

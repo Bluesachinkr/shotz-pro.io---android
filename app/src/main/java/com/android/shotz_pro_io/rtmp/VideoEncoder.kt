@@ -63,7 +63,7 @@ internal class VideoEncoder(mediaProjection: MediaProjection) : Encoder {
         this.mFrameRate = frameRate
         this.mDensity = density
         this.bufferInfo = MediaCodec.BufferInfo()
-        val format = MediaFormat.createVideoFormat(MIME_TYPE, mWidth, mHeight)
+        val format = MediaFormat.createVideoFormat(MIME_TYPE,1280,720)
         format.setInteger(
             MediaFormat.KEY_COLOR_FORMAT,
             MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
@@ -78,8 +78,8 @@ internal class VideoEncoder(mediaProjection: MediaProjection) : Encoder {
         inputSurface?.let {
             virtualDisplay = mediaProjection.createVirtualDisplay(
                 "Capturing Display",
-                mWidth,
-                mHeight,
+               1280,
+                720,
                 mDensity,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                 it,
@@ -124,6 +124,7 @@ internal class VideoEncoder(mediaProjection: MediaProjection) : Encoder {
                         val config = ByteArray(sps.limit() + pps.limit())
                         sps.get(config, 0, sps.limit())
                         pps.get(config, sps.limit(), pps.limit())
+                        println("Streaming")
                         listener!!.onVideoDataEncoded(config, config.size, 0)
                     }
                 } else {
@@ -141,6 +142,7 @@ internal class VideoEncoder(mediaProjection: MediaProjection) : Encoder {
                             val data = ByteArray(bufferInfo!!.size)
                             encodedData.get(data, 0, bufferInfo!!.size)
                             encodedData.position(bufferInfo!!.offset)
+                            println("Streaming")
                             listener!!.onVideoDataEncoded(data, bufferInfo!!.size, timestamp)
                             lastFrameEncodedAt = currentTime
                         }

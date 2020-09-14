@@ -1,4 +1,4 @@
-package com.android.shotz_pro_io.screenCapture
+package com.android.shotz_pro_io.recording
 
 import android.content.BroadcastReceiver
 import android.content.Context

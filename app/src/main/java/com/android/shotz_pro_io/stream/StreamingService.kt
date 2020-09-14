@@ -5,17 +5,20 @@ import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.os.Binder
-import android.os.IBinder
+import android.os.*
 import android.util.DisplayMetrics
 import android.view.Display
+import androidx.annotation.NonNull
+import com.android.shotz_pro_io.main.MainActivity
 import com.android.shotz_pro_io.rtmp.Publisher
 import com.android.shotz_pro_io.rtmp.PublisherListener
+import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.util.ExponentialBackOff
 import java.lang.Exception
 
 class StreamingService : BaseService(), PublisherListener {
     companion object {
-        lateinit var mContext: StreamingService
+        var mContext: StreamingService? = null
         val KEY_NOTIFY_MSG = "stream service notify"
         val NOTIFY_MSG_CONNECTION_FAILED = "Stream connection failed"
         val NOTIFY_MSG_CONNECTION_STARTED = "Stream started"
@@ -26,11 +29,11 @@ class StreamingService : BaseService(), PublisherListener {
         val NOTIFY_MSG_REQUEST_START = "Request start stream"
         val NOTIFY_MSG_REQUEST_STOP = "Request stop stream"
         val AUDIO_SAMPLE_RATE = 44100
+
     }
 
     val binder = LocalBinder()
     private val TAG = "Streaming Service"
-    val activity = StreamingActivity.getInstance()
     private val frame_mutex = Object()
     open var isStreaming = false
 
@@ -45,8 +48,10 @@ class StreamingService : BaseService(), PublisherListener {
 
     override fun onCreate() {
         super.onCreate()
+        mContext = this
         mediaProjectionManager =
             getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        
     }
 
     fun getScreenSize() {
@@ -107,23 +112,17 @@ class StreamingService : BaseService(), PublisherListener {
         return binder
     }
 
-    open fun startStreaming(streamUrl: String) {
+    open fun startStreaming(streamUrl: String,broadcastId : String) {
         synchronized(frame_mutex) {
             if (mPublisher == null) {
                 try {
                     mediaProjection?.let {
-                        mPublisher = Publisher.Builder().setUrl(streamUrl)
-                            .setWidth(mScreenWidth)
-                            .setHeight(mScreenHeight)
-                            .setAudioBitrate(Publisher.Builder.DEFAULT_AUDIO_BITRATE)
-                            .setVideoBitrate(Publisher.Builder.DEFAULT_VIDEO_BITRATE)
-                            .setMediaProjection(it)
-                            .setPublisherListener(this)
-                            .build()
+                       createPublisher(streamUrl,it)
                     }
-                    mPublisher?.let {
+                       mPublisher?.let {
                         it.startPublishing()
                     }
+
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -133,26 +132,38 @@ class StreamingService : BaseService(), PublisherListener {
         }
     }
 
-    open fun stopStreaming() {
+    open fun stopStreaming(broadcastId: String) {
         mPublisher?.let {
             if (it.isPublishing()!!) {
                 it.stopPublishing()
+                MainActivity.mContext?.endEvent(broadcastId)
             }
         }
     }
 
-    class LocalBinder : Binder() {
+    fun createPublisher(streamUrl: String,@NonNull mediaProjection: MediaProjection){
+        mPublisher = Publisher.Builder().setUrl(streamUrl)
+            .setWidth(1280)
+            .setHeight(720)
+            .setAudioBitrate(Publisher.Builder.DEFAULT_AUDIO_BITRATE)
+            .setVideoBitrate(Publisher.Builder.DEFAULT_VIDEO_BITRATE)
+            .setMediaProjection(mediaProjection)
+            .setPublisherListener(this)
+            .build()
+    }
+
+    inner class LocalBinder : Binder() {
         fun getService(): StreamingService {
-            return mContext
+            return this@StreamingService
         }
     }
 
-    override fun startPerformService(streamUrl: String) {
-        startStreaming(streamUrl)
+    override fun startPerformService(streamUrl: String,broadcastId: String) {
+        startStreaming(streamUrl,broadcastId)
     }
 
     override fun stopPerformService() {
-        stopStreaming()
+
     }
 
     override fun onStarted() {

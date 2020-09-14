@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cameraPreview"
+    android:layout_width="112dp"
+    android:layout_height="128dp"
+    android:background="@drawable/background_camera_cam_one">
+
+    <TextureView
+        android:id="@+id/textureViewCamStream"
+        android:layout_width="106dp"
+        android:layout_height="132dp"
+        android:layout_centerVertical="true"
+        android:layout_centerHorizontal="true"/>
+
+</RelativeLayout>

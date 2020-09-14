@@ -22,14 +22,12 @@ import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
 import androidx.viewpager.widget.ViewPager
 import com.android.shotz_pro_io.R
-import com.android.shotz_pro_io.screenCapture.CapturingBallService
+import com.android.shotz_pro_io.stream.StreamingControllerService
 import com.android.shotz_pro_io.stream.EventData
 import com.android.shotz_pro_io.stream.StreamingActivity
 import com.android.shotz_pro_io.stream.YoutubeApi
-import com.google.android.gms.auth.api.signin.GoogleSignInApi
 import com.google.android.gms.common.GooglePlayServicesUtil
 import com.google.android.gms.common.Scopes
-import com.google.android.gms.common.api.GoogleApiClient
 import com.google.android.material.tabs.TabLayout
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
 import com.google.api.client.http.javanet.NetHttpTransport
@@ -120,10 +118,10 @@ class HomeActivity : AppCompatActivity() {
             )
             startActivityForResult(intent, CODE_DRAW_OVER_OTHER_APP_PERMISSION)
         } else {
-            if (!CapturingBallService.isBallOpen) {
-                val intentBall = Intent(this, CapturingBallService::class.java)
+            if (!StreamingControllerService.isBallOpen) {
+                val intentBall = Intent(this, StreamingControllerService::class.java)
                 startService(intentBall)
-                CapturingBallService.isBallOpen = true
+                StreamingControllerService.isBallOpen = true
             }
         }
 
@@ -139,7 +137,9 @@ class HomeActivity : AppCompatActivity() {
                 selectedVideoCallback
             )
         )*/
-        this.fragList.add(StreamFragment())
+      /*  this.fragList.add(StreamFragment(
+            
+        )
         this.fragList.add(SettingsFragment(this))
         this.mViewPager.adapter = Adapter(supportFragmentManager, this.fragList)
         mTabLayout.setupWithViewPager(mViewPager)
@@ -180,7 +180,7 @@ class HomeActivity : AppCompatActivity() {
 
         supportFragmentManager?.let {
             listFragment = fragList[0]
-        }
+        }*/
     }
 
     private fun getGoogleApiConnection(savedInstanceState: Bundle?) {
@@ -274,7 +274,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        CapturingBallService.isBallOpen = false
+        StreamingControllerService.isBallOpen = false
     }
 
     class Adapter(fm: FragmentManager, list: MutableList<Fragment>) :
@@ -387,7 +387,7 @@ class HomeActivity : AppCompatActivity() {
                 val youtube = getYoutubeService()
                 try {
                     params[0]?.let {
-                        YoutubeApi.startEvent(youtube, it)
+                       /* YoutubeApi.startEvent(youtube, it,)*/
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()

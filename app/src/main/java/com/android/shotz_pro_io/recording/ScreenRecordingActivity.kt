@@ -1,4 +1,4 @@
-package com.android.shotz_pro_io.screenCapture
+package com.android.shotz_pro_io.recording
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

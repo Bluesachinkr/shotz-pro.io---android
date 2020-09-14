@@ -1,5 +1,6 @@
 package com.android.shotz_pro_io.stream
 
+import com.android.shotz_pro_io.rtmp.utils.StreamProfile
 import com.google.api.client.util.DateTime
 import com.google.api.services.youtube.YouTube
 import com.google.api.services.youtube.model.*
@@ -29,9 +30,10 @@ class YoutubeApi {
                 broadcastSnippet.scheduledStartTime = DateTime(date)
 
                 val contentDetails = LiveBroadcastContentDetails()
-                val monitorStreamInfo = MonitorStreamInfo()
-                monitorStreamInfo.enableMonitorStream = false
-                contentDetails.monitorStream = monitorStreamInfo
+                val monitorstream = MonitorStreamInfo()
+                monitorstream.enableMonitorStream = false
+                contentDetails.startWithSlate = false
+                contentDetails.monitorStream = monitorstream
 
                 //Set LiveBroadCast Status
                 val liveBroadcastStatus = LiveBroadcastStatus()
@@ -57,7 +59,7 @@ class YoutubeApi {
 
                 //cdn settings
                 val cdn = CdnSettings()
-                cdn.format = "240p"
+                cdn.format = "720p"
                 cdn.ingestionType = "rtmp"
 
                 val liveStream = LiveStream()
@@ -79,7 +81,10 @@ class YoutubeApi {
                 liveBroadcastBind.streamId = returnedStream.id
 
                 //returned bind
-                liveBroadcastBind.execute()
+                val BindResult = liveBroadcastBind.execute()
+                StreamProfile.broadcastKey = BindResult.id
+                StreamProfile.streamId = BindResult.contentDetails.boundStreamId
+
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -98,7 +103,12 @@ class YoutubeApi {
                 val streamId = data.contentDetails.boundStreamId
                 if (streamId != null) {
                     val eventData =
-                        EventData(data, getIngestionAddress(youtube, data.contentDetails.boundStreamId))
+                        EventData(
+                            data, getIngestionAddress(
+                                youtube,
+                                data.contentDetails.boundStreamId
+                            )
+                        )
                     resultList.add(eventData)
                 } else {
                     val eventData =
@@ -106,20 +116,23 @@ class YoutubeApi {
                     resultList.add(eventData)
                 }
             }
+            for (list in resultList) {
+                println(list.mIngestionAddress)
+            }
             return resultList
         }
 
-        fun startEvent(youtube: YouTube, broadcastId: String) {
-            try {
-                Thread.sleep(1000)
-            } catch (e: java.lang.Exception) {
-                e.printStackTrace()
-            }
+        fun startEvent(youtube: YouTube, broadcastId: String, streamId: String) {
+            val transition: YouTube.LiveBroadcasts.Transition? =
+                youtube.liveBroadcasts().transition("live", broadcastId, "status")
+            transition?.execute()
+            println("Transition live")
+
         }
 
         fun endEvent(youtube: YouTube, broadcastId: String) {
             val transitionRequest =
-                youtube.liveBroadcasts().transition("completed", broadcastId, "status")
+                youtube.liveBroadcasts().transition("complete", broadcastId, "status")
             transitionRequest.execute()
         }
 

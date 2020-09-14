@@ -1,8 +1,6 @@
 package com.android.shotz_pro_io.adapter
 
 import android.content.Context
-import android.media.ThumbnailUtils
-import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,10 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.android.shotz_pro_io.R
 import com.android.shotz_pro_io.main.MainActivity
 import com.android.shotz_pro_io.stream.EventData
-import com.bumptech.glide.Glide
 import com.google.android.gms.common.api.GoogleApiClient
-import com.google.api.client.googleapis.services.AbstractGoogleClient
-import java.io.File
 
 class VideoAdapter(
     mContext: Context,
