@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
 import com.android.shotz_pro_io.R
-import com.android.shotz_pro_io.rtmp.utils.StreamProfile
+import com.android.shotz_pro_io.controllers.rtmp.utils.StreamProfile
 
 class StreamFragment(listener: StreamCallbackListener) : Fragment() {
 

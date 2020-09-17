@@ -12,7 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
 import com.android.shotz_pro_io.R
-import com.android.shotz_pro_io.rtmp.utils.StreamProfile
+import com.android.shotz_pro_io.controllers.rtmp.utils.StreamProfile
 import com.android.shotz_pro_io.stream.EventData
 import com.android.shotz_pro_io.stream.StreamingActivity
 import com.android.shotz_pro_io.stream.YoutubeApi
@@ -32,7 +32,9 @@ import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.client.util.ExponentialBackOff
 import com.google.api.services.youtube.YouTube
 import com.google.api.services.youtube.YouTubeScopes
+import com.google.api.services.youtube.model.LiveBroadcast
 import com.mikhaellopez.circularimageview.CircularImageView
+import org.json.JSONObject
 import java.util.*
 
 
@@ -54,11 +56,12 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
     private val permission = arrayOf<String>(
         android.Manifest.permission.READ_EXTERNAL_STORAGE,
         android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        android.Manifest.permission.CAMERA,
         android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.GET_ACCOUNTS
     )
     private val selectedEventCallback: CallbackVideo = object : CallbackVideo {
         override fun onEventSelected(event: EventData) {
-            startStreaming(event)
+            startStreaming()
             //deleteStreaming(event)
         }
     }
@@ -101,8 +104,8 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
         StreamProfile.youTube = youTube
 
         //google sign in
-        gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestEmail()
-            .requestProfile().build()
+        gso =
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestEmail().build()
         googleSignInClient = GoogleApiClient.Builder(this)
             .addApi(Auth.GOOGLE_SIGN_IN_API, gso)
             .addConnectionCallbacks(this)
@@ -185,7 +188,7 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
                         p
                     ) == PackageManager.PERMISSION_DENIED
                 ) {
-                    finish()
+                    ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.CAMERA),PERMISSION_CODE)
                 }
             }
         }
@@ -228,7 +231,7 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
                 if (resultCode == RESULT_OK && data != null && data.extras != null) {
                     val Id = data.extras!![YoutubeApi.BROADCAST_ID_KEY].toString()
                     Id?.let {
-                        EndLiveEventTask().execute(it)
+                        EndLiveEventTask().execute()
                     }
                 }
             }
@@ -282,30 +285,16 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
         }
     }
 
-    fun startStreaming(event: EventData) {
-        this.event = event
-        StreamProfile.youTube = youSelect
-        StreamProfile.broadcastKey = event.getId()
-        StreamProfile.rtmpUrl = event.mIngestionAddress
-        mContext?.let {
-            val intent = Intent(this, StreamingActivity()::class.java).also {
-                it.putExtra(YoutubeApi.RTMP_URL_KEY, event.mIngestionAddress)
-                it.putExtra(YoutubeApi.BROADCAST_ID_KEY, event.getId())
-            }
-            startActivityForResult(intent, HomeActivity.REQUEST_STREAMER)
+    fun startStreaming() {
+        val intent = Intent(this, StreamingActivity()::class.java).also {
+            it.putExtra(YoutubeApi.RTMP_URL_KEY, StreamProfile.rtmpUrl)
+            it.putExtra(YoutubeApi.BROADCAST_ID_KEY, StreamProfile.broadcastKey)
         }
-    }
-
-    fun startEvent(id: String) {
-        if (credential == null) {
-            credential =
-                GoogleAccountCredential.usingOAuth2(this, scopes).setBackOff(ExponentialBackOff())
-        }
-        StartEventTask(credential).execute(event)
+        startActivityForResult(intent, HomeActivity.REQUEST_STREAMER)
     }
 
     fun endEvent(broadcastId: String) {
-        EndLiveEventTask(credential).execute(broadcastId)
+        EndLiveEventTask().execute()
     }
 
     fun deleteEvent(broadcastId: String) {
@@ -332,21 +321,37 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
         dialog.show()
     }
 
+    private fun loadStreamProfile(youtube: YouTube, result: LiveBroadcast) {
+        val BindResult = JSONObject(result)
+        StreamProfile.broadcastKey = BindResult["id"] as String
+        val cd = BindResult["contentDetails"] as JSONObject
+        StreamProfile.streamId = cd["boundStreamId"] as String
+        val liveBroadcastObject = youtube.liveBroadcasts().list("id,snippet")
+        liveBroadcastObject.id = StreamProfile.broadcastKey
+        val liveBroadcastResult = liveBroadcastObject.execute()
+        val liveBroadcastItem = liveBroadcastResult.items[0]
+        val liveBroadcastJSONObject = JSONObject(liveBroadcastItem)
+        println(liveBroadcastJSONObject)
+        val snippetObject = liveBroadcastJSONObject["snippet"] as JSONObject
+        StreamProfile.lievChatId = snippetObject["liveChatId"] as String
+        val url =
+            YoutubeApi.getIngestionAddress(StreamProfile.youTube!!, StreamProfile.streamId)
+        StreamProfile.rtmpUrl = url
+    }
+
     private fun isGoogleServicesAvailable(): Boolean {
         val apiAvailability = GoogleApiAvailability.getInstance()
         val connectionStatusCode = apiAvailability.isGooglePlayServicesAvailable(this)
         return connectionStatusCode == ConnectionResult.SUCCESS
     }
 
-    inner class CreateLiveEventTask() : AsyncTask<Void, Void, List<EventData>?>() {
+    inner class CreateLiveEventTask() : AsyncTask<Void, Void, Void?>() {
         private lateinit var youTube: YouTube
 
-        constructor(credential: GoogleAccountCredential) : this() {
-            val transport = NetHttpTransport()
-            val jsonFactory = JacksonFactory.getDefaultInstance()
-            youTube = YouTube.Builder(transport, jsonFactory, credential)
-                .setApplicationName(HomeActivity.APP_NAME).build()
-            StreamProfile.youTube = youTube
+        init {
+            StreamProfile.youTube?.let {
+                youTube = it
+            }
         }
 
         private var progressDailog: ProgressDialog? = null
@@ -359,31 +364,27 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
             )
         }
 
-        override fun doInBackground(vararg params: Void?): List<EventData>? {
-            mContext?.let {
-                try {
-                    val date = Date().toString()
-                    YoutubeApi.createLiveEvent(
-                        youTube, "Event - " + date,
-                        "A live streaming event - " + date
-                    )
-                    return YoutubeApi.getLiveEvents(youTube)
-                } catch (e: UserRecoverableAuthIOException) {
-                    mContext?.startActivityForResult(e.intent, REQUEST_AUTHORIZATION)
-                } catch (e: Exception) {
-                    e.printStackTrace()
+        override fun doInBackground(vararg params: Void?): Void? {
+            try {
+                val date = Date().toString()
+                val result = YoutubeApi.createLiveEvent(
+                    youTube, "Event - " + date,
+                    "A live streaming event - " + date
+                )
+                result?.let {
+                    loadStreamProfile(youTube, it)
                 }
+            } catch (e: UserRecoverableAuthIOException) {
+                this@MainActivity.startActivityForResult(e.intent, REQUEST_AUTHORIZATION)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
             return null
         }
 
-        override fun onPostExecute(result: List<EventData>?) {
-            //set create live button
-            result?.let {
-                val last = result.size - 1
-                startStreaming(result[last])
-            }
+        override fun onPostExecute(result: Void?) {
             progressDailog?.dismiss()
+            startStreaming()
         }
     }
 
@@ -468,119 +469,26 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
         }
     }
 
-    inner class StartEventTask() : AsyncTask<EventData, Void, Void?>() {
-        private var progressDailog: ProgressDialog? = null
+
+    inner class EndLiveEventTask : AsyncTask<Void, Void, Void?>() {
         private lateinit var youTube: YouTube
-        private var event: EventData? = null
-        private var streamId: String = ""
 
-        constructor(credential: GoogleAccountCredential) : this() {
-            val transport = NetHttpTransport()
-            val jsonFactory = JacksonFactory.getDefaultInstance()
-            youTube = YouTube.Builder(transport, jsonFactory, credential)
-                .setApplicationName(HomeActivity.APP_NAME).build()
-            youSelect = youTube
-        }
-
-        override fun onPreExecute() {
-            mContext?.let {
-                progressDailog = ProgressDialog.show(
-                    it,
-                    null,
-                    it.resources.getText(R.string.startingEvent),
-                    true
-                )
+        init {
+            StreamProfile.youTube?.let {
+                youTube = it
             }
         }
 
-        override fun doInBackground(vararg params: EventData?): Void? {
-            mContext?.let {
-                try {
-                    params[0]?.let {
-                        val broadcastId = it.getId()
-                        event = it
-                        val liveBroadcast = youTube.liveBroadcasts().list("contentDetails")
-                        liveBroadcast.id = broadcastId
-                        val result = liveBroadcast.execute()
-                        val iteamBroadcast = result.items[0]
-                        streamId = iteamBroadcast.contentDetails.boundStreamId!!
-                        StreamProfile.streamId = streamId
-                        val status = getStatus(streamId)
-                        YoutubeApi.startEvent(youTube, broadcastId, streamId)
-                    }
-                } catch (e: UserRecoverableAuthIOException) {
-                    mContext?.startActivityForResult(e.intent, REQUEST_AUTHORIZATION)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+        override fun doInBackground(vararg params: Void?): Void? {
+            try {
+                YoutubeApi.endEvent(youTube, StreamProfile.broadcastKey)
+            } catch (e: UserRecoverableAuthIOException) {
+                this@MainActivity.startActivityForResult(e.intent, REQUEST_AUTHORIZATION)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
             return null
         }
-
-        override fun onPostExecute(result: Void?) {
-            progressDailog?.dismiss()
-        }
-
-        fun getStatus(streamId: String): String {
-            val liveStreams: YouTube.LiveStreams.List = youTube.liveStreams().list("status")
-            liveStreams.id = streamId
-            var returnedLiveStreams = liveStreams.execute()
-            var status = returnedLiveStreams.items[0]
-            return status.status.streamStatus
-        }
-    }
-
-    inner class EndLiveEventTask() : AsyncTask<String, Void, Void?>() {
-        private var progressDailog: ProgressDialog? = null
-        private lateinit var youTube: YouTube
-
-        constructor(credential: GoogleAccountCredential) : this() {
-            val transport = NetHttpTransport()
-            val jsonFactory = JacksonFactory.getDefaultInstance()
-            youTube = YouTube.Builder(transport, jsonFactory, credential)
-                .setApplicationName(HomeActivity.APP_NAME).build()
-        }
-
-        override fun onPreExecute() {
-            progressDailog = ProgressDialog.show(
-                this@MainActivity,
-                null,
-                resources.getText(R.string.endingEvent),
-                true
-            )
-        }
-
-        override fun doInBackground(vararg params: String?): Void? {
-            mContext?.let {
-                try {
-                    params[0]?.let {
-                        if (params.size >= 1) {
-                            YoutubeApi.endEvent(youTube, it)
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-            return null
-        }
-
-        override fun onPostExecute(result: Void?) {
-            progressDailog?.dismiss()
-        }
-    }
-
-    fun getStatus(broadcastId: String) {
-        val youTube =
-            YouTube.Builder(NetHttpTransport(), JacksonFactory.getDefaultInstance(), credential)
-                .setApplicationName(HomeActivity.APP_NAME).build()
-        val liveBroadcast = youTube.liveBroadcasts().list("contentDetails")
-        liveBroadcast.id = broadcastId
-        val result = liveBroadcast.execute()
-        val iteamBroadcast = result.items[0]
-        val streamId = iteamBroadcast.contentDetails.boundStreamId!!
-        val status = getStatus(streamId)
-        println(status)
     }
 
     interface CallbackVideo {
@@ -596,15 +504,15 @@ class MainActivity : AppCompatActivity(), GoogleApiClient.OnConnectionFailedList
     }
 
     override fun onConnectionSuspended(p0: Int) {
-        TODO("Not yet implemented")
+
     }
 
     override fun startStream() {
-        CreateLiveEventTask(credential).execute()
+        CreateLiveEventTask().execute()
     }
 
     override fun stopStream() {
-        EndLiveEventTask(credential).execute(StreamProfile.broadcastKey)
-        DeleteEventTask(StreamProfile.youTube!!).execute(StreamProfile.broadcastKey)
+        CreateLiveEventTask().execute()
+        startStreaming()
     }
 }

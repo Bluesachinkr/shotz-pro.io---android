@@ -1,4 +1,4 @@
-package com.android.shotz_pro_io.rtmp.utils
+package com.android.shotz_pro_io.controllers.rtmp.utils
 
 class MyUtils {
     companion object{

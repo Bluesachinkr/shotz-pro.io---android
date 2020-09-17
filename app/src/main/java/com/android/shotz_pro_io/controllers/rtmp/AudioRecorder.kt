@@ -1,4 +1,4 @@
-package com.android.shotz_pro_io.rtmp
+package com.android.shotz_pro_io.controllers.rtmp
 
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -33,7 +33,7 @@ internal class AudioRecorder(private val sampleRate: Int) {
         handlerThread.start()
         val handler = Handler(handlerThread.looper)
         handler.post {
-            var bufferReadResult: Int = 0
+            var bufferReadResult= 0
             val data = ByteArray(bufferSize)
             // keep running... so use a different thread.
             while (isRecording && audioRecord!!.read(data, 0, bufferSize).also {

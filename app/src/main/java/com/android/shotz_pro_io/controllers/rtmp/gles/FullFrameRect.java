@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.shotz_pro_io.rtmp.gles;
+package com.android.shotz_pro_io.controllers.rtmp.gles;
 
 /**
  * This class essentially represents a viewport-sized sprite that will be rendered with

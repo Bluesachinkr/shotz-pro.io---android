@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.shotz_pro_io.rtmp.gles;
+package com.android.shotz_pro_io.controllers.rtmp.gles;
 
 import android.graphics.Bitmap;
 import android.opengl.EGL14;

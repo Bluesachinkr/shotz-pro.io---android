@@ -1,4 +1,4 @@
-package com.android.shotz_pro_io.rtmp
+package com.android.shotz_pro_io.controllers.rtmp
 
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay

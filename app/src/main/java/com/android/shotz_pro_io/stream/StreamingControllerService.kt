@@ -5,22 +5,24 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.hardware.Camera
 import android.os.*
 import android.text.TextUtils
 import android.view.*
 import android.widget.*
-import com.android.shotz_pro_io.LoginActivity
 import com.android.shotz_pro_io.R
+import com.android.shotz_pro_io.controllers.setting.CameraSetting
+import com.android.shotz_pro_io.controllers.setting.SettingManager
 import com.android.shotz_pro_io.main.MainActivity
-import com.android.shotz_pro_io.rtmp.utils.StreamProfile
+import com.android.shotz_pro_io.controllers.rtmp.utils.StreamProfile
 import com.bumptech.glide.Glide
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.mikhaellopez.circularimageview.CircularImageView
 import org.json.JSONObject
 
-class StreamingControllerService() : Service(), View.OnTouchListener, View.OnClickListener {
+class StreamingControllerService : Service(), View.OnTouchListener, View.OnClickListener {
 
     private val TAG = StreamingControllerService::class.java.simpleName
     val ACTION_NOTIFY_FROM_STREAM_SERVICE = "ACTION_NOTIFY_FROM_STREAM_SERVICE"
@@ -30,11 +32,9 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
     private var mCamera: android.hardware.Camera? = null
     private var mScreenCaptureIntent: Intent? = null
 
-    private var rtmpUrl: String = ""
-    private var broadcastId: String = ""
     private var health: String = ""
     private var streamLifecycle: String = ""
-    private var status: String = ""
+    private var liveStatus: String = ""
     private var isEventStarted: Boolean = false
 
     private var stremStartingAt: Long = 1
@@ -47,17 +47,20 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
     private var controllerParams: WindowManager.LayoutParams? = null
     private var paramCam: WindowManager.LayoutParams? = null
     private var paramCountDown: WindowManager.LayoutParams? = null
+    private var paramStatus: WindowManager.LayoutParams? = null
 
 
     private lateinit var mBallView: View
     private lateinit var mCameraLayout: View
     private lateinit var mStreamController: View
     private lateinit var mCountDown: View
+    private lateinit var mStatusView: View
 
     private lateinit var accountImageLayout: FrameLayout
     private lateinit var accountImage: CircularImageView
     private lateinit var countDownText: TextView
     private lateinit var healthStatus: TextView
+    private lateinit var statusLive: TextView
     private lateinit var cameraPreview: RelativeLayout
     private lateinit var setting_stream_panel: RelativeLayout
     private lateinit var close_stream_panel: RelativeLayout
@@ -69,10 +72,8 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
     private lateinit var live_stream_panel_after: LinearLayout
     private lateinit var liveBtn_streamController: Button
 
-    private var mRecordingStarted = false
-    private var mRecordingPaused = false
-    private var mCameraWidth = false
-    private var mCameraHeight = false
+    private var mCameraWidth = 0
+    private var mCameraHeight = 0
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX: Float = 0.toFloat()
@@ -84,7 +85,7 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
 
     companion object {
         var isBallOpen = false
-        var live_status_time: TextView? = null
+        var live_status: TextView? = null
         var id: String = ""
     }
 
@@ -100,31 +101,30 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
         this.mCameraLayout = LayoutInflater.from(this).inflate(R.layout.cam_streaming_view, null)
         this.mCountDown =
             LayoutInflater.from(this).inflate(R.layout.count_down_streaming_view, null)
+        this.mStatusView =
+            LayoutInflater.from(this).inflate(R.layout.status_layout_live_stream, null)
 
         this.accountImageLayout = mBallView.findViewById(R.id.controlLayout)
         this.live_stream_panel_after = mStreamController.findViewById(R.id.live_stream_panel_after)
-        live_status_time = mStreamController.findViewById(R.id.live_status_time)
+        live_status = mStreamController.findViewById(R.id.live_status)
         this.healthStatus = mStreamController.findViewById(R.id.healthStatus)
         this.close_stream_panel = mStreamController.findViewById(R.id.close_stream_panel)
         this.camera_open_close_panel = mStreamController.findViewById(R.id.camera_open_close_panel)
         this.live_chats_panel = mStreamController.findViewById(R.id.camera_open_close_panel)
         this.setting_stream_panel = mStreamController.findViewById(R.id.setting_stream_panel)
-        this.liveBtn_streamController =
-            mStreamController.findViewById(R.id.liveBtn_streamController)
+        this.liveBtn_streamController = mStreamController.findViewById(R.id.liveBtn_streamController)
+        this.statusLive = mStatusView.findViewById(R.id.status_live_stream)
         this.cameraPreview = mCameraLayout.findViewById(R.id.cameraPreview)
         this.countDownText = mCountDown.findViewById(R.id.countDownText)
         this.textureViewCamera = mCameraLayout.findViewById(R.id.textureViewCamStream)
-        accountImage = mBallView.findViewById(R.id.bubble_account_image_view)
+        this.accountImage = mBallView.findViewById(R.id.bubble_account_image_view)
+
+        //load google sign in details
+        loadGoogleSignIn()
 
         this.countDownTimer = object : CountDownTimer(3600 * 24 * 1000, 500) {
             override fun onTick(p0: Long) {
-                GetTime().execute(p0)
-                healthStatus.text = health
-                setTime(stremStartingAt / 2)
-                stremStartingAt++;
-                if (health == "noData") {
-                    stopStreamingEncoder()
-                }
+                onTickWork()
             }
 
             override fun onFinish() {
@@ -132,6 +132,31 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
             }
         }
 
+        //initialize params fro streaming
+        initParams()
+
+        //movement
+        accountImageLayout.setOnTouchListener(this)
+        accountImage.setOnClickListener {
+            if (isStreamControllerEnabled) {
+                windowManager?.removeView(mStreamController)
+                isStreamControllerEnabled = false
+            } else {
+                windowManager?.let {
+                    it.addView(mStreamController, controllerParams)
+                }
+                isStreamControllerEnabled = true
+            }
+        }
+
+        liveBtn_streamController.setOnClickListener(this)
+        camera_open_close_panel.setOnClickListener(this)
+        close_stream_panel.setOnClickListener(this)
+        live_chats_panel.setOnClickListener(this)
+        setting_stream_panel.setOnClickListener(this)
+    }
+
+    private fun initParams() {
         var LAYOUT_FLAG = 0
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             LAYOUT_FLAG = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -172,6 +197,14 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
             PixelFormat.TRANSPARENT
         )
 
+        paramStatus = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            LAYOUT_FLAG,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSPARENT
+        )
+
         //layout initial position
         params?.gravity = Gravity.TOP or Gravity.RIGHT
         params?.x = 0
@@ -187,91 +220,27 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
         //countDown initial position
         paramCountDown?.gravity = Gravity.CENTER_VERTICAL or Gravity.CENTER_HORIZONTAL
 
+        //status
+        paramStatus?.gravity = Gravity.LEFT or Gravity.TOP
+        paramStatus?.x = 10
+        paramStatus?.y = 10
+
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         windowManager?.let {
             it.addView(mBallView, params)
         }
-
-        //movement
-        accountImageLayout.setOnTouchListener(this)
-        accountImage.setOnClickListener {
-            if (isStreamControllerEnabled) {
-                windowManager?.removeView(mStreamController)
-                isStreamControllerEnabled = false
-            } else {
-                windowManager?.let {
-                    it.addView(mStreamController, controllerParams)
-                }
-                isStreamControllerEnabled = true
-            }
-        }
-
-        liveBtn_streamController.setOnClickListener(this)
-        camera_open_close_panel.setOnClickListener(this)
-        close_stream_panel.setOnClickListener(this)
-        live_chats_panel.setOnClickListener(this)
-        setting_stream_panel.setOnClickListener(this)
     }
 
-    private fun setTime(time: Long) {
-        live_status_time?.let {
-            if (time < 60) {
-                if (time >= 10) {
-                    it.text = "00:00:" + time
-                } else {
-                    it.text = "00:00:0" + time
-                }
-            } else if (time < 3600) {
-                val second = time % 60
-                val minutes = time / 60
-                if (minutes >= 10) {
-                    if (second >= 10) {
-                        it.text = "00:" + minutes + ":" + second
-                    } else {
-                        it.text = "00:" + minutes + ":0" + second
-                    }
-                } else {
-                    if (second >= 10) {
-                        it.text = "00:0" + minutes + ":" + second
-                    } else {
-                        it.text = "00:0" + minutes + ":0" + second
-                    }
-                }
-            } else {
-                val m = time % 3600
-                val hour = time / 3600
-                val second = m % 60
-                val minutes = m / 60
-                if (hour >= 10) {
-                    if (minutes >= 10) {
-                        if (second >= 10) {
-                            it.text = "" + hour + ":" + minutes + ":" + second
-                        } else {
-                            it.text = "" + hour + ":" + minutes + ":0" + second
-                        }
-                    } else {
-                        if (second >= 10) {
-                            it.text = "" + hour + ":0" + minutes + ":" + second
-                        } else {
-                            it.text = "" + hour + ":0" + minutes + ":0" + second
-                        }
-                    }
-                } else {
-                    if (minutes >= 10) {
-                        if (second >= 10) {
-                            it.text = "0" + hour + ":" + minutes + ":" + second
-                        } else {
-                            it.text = "0" + hour + ":" + minutes + ":0" + second
-                        }
-                    } else {
-                        if (second >= 10) {
-                            it.text = "0" + hour + ":0" + minutes + ":" + second
-                        } else {
-                            it.text = "0" + hour + ":0" + minutes + ":0" + second
-                        }
-                    }
-                }
-            }
+    private fun onTickWork() {
+        statusLive.text = streamLifecycle
+        healthStatus.text = health
+        live_status?.text = liveStatus
+        GetLiveStatus().execute()
+        stremStartingAt++
+        if (streamLifecycle.equals("live") && health.equals("noData")) {
+            stopStreamingEncoder()
+            isLive = false
+            MainActivity.mContext?.stopStream()
         }
     }
 
@@ -279,6 +248,31 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
         super.onDestroy()
         mBallView?.let {
             windowManager?.removeView(it)
+        }
+
+        mCameraLayout?.let {
+            windowManager?.removeViewImmediate(it)
+            releaseCamera()
+        }
+        mStreamingService?.let {
+            unbindService(serviceConnection)
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        cameraPreview?.let {
+            var width = mCameraWidth
+            var height = mCameraHeight
+
+            val params = cameraPreview.layoutParams
+            if(newConfig.orientation == Configuration.ORIENTATION_PORTRAIT){
+                params.height = width
+                params.width = height
+            }else{
+                params.width = width
+                params.height = height
+            }
+            cameraPreview.layoutParams = params
         }
     }
 
@@ -307,11 +301,6 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
                 }
                 MotionEvent.ACTION_UP -> {
                     if (lastAction == MotionEvent.ACTION_DOWN) {
-                        /*val intent = Intent(this,ScreenRecordingActivity::class.java)
-                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        startActivity(intent)
-
-                        stopSelf()*/
                         if (isStreamControllerEnabled) {
                             windowManager?.removeView(mStreamController)
                             isStreamControllerEnabled = false
@@ -336,29 +325,30 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
         countDownTimer.onFinish()
         liveBtn_streamController.text = "Live"
         live_stream_panel_after.visibility = View.GONE
-        mStreamingService?.stopStreaming(broadcastId)
+        mStreamingService?.stopStreaming()
         isLive = false
+    }
+
+    fun startSteamEncoder() {
+        countDownTimer.start()
+        liveBtn_streamController.text = "Stop"
+        live_stream_panel_after.visibility = View.VISIBLE
+        mStreamingService?.startStreaming(
+            StreamProfile.rtmpUrl,
+            StreamProfile.broadcastKey
+        )
+        isLive = true
     }
 
     override fun onClick(p0: View?) {
         when (p0) {
             liveBtn_streamController -> {
-                if (hasGoogleSignIn()) {
-                    if (isLive) {
-                        stopStreamingEncoder()
-                    } else {
-                        countDownTimer.start()
-                        liveBtn_streamController.text = "Stop"
-                        live_stream_panel_after.visibility = View.VISIBLE
-                        StreamingActivity.rtmpUrl?.let {
-                            mStreamingService?.startStreaming(it, broadcastId!!)
-                        }
-                        isLive = true
-                    }
-
+                if (isLive) {
+                    stopStreamingEncoder()
                 } else {
-                    startActivity(Intent(this, LoginActivity::class.java))
+                    startCountDown()
                 }
+                showStatusLive()
             }
             camera_open_close_panel -> {
                 if (isCamOpen) {
@@ -375,6 +365,22 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
                 return
             }
         }
+    }
+
+    private fun startCountDown() {
+        var count = 5
+        windowManager?.addView(mCountDown, paramCountDown)
+        val timer =object : CountDownTimer(5000,1000){
+            override fun onTick(p0: Long) {
+                countDownText.text = count.toString()
+                count--
+            }
+
+            override fun onFinish() {
+                windowManager?.removeViewImmediate(mCountDown)
+                startSteamEncoder()
+            }
+        }.start()
     }
 
     //start command service in streaming controller ball service
@@ -402,6 +408,18 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
         return super.onStartCommand(intent, flags, startId)
     }
 
+    //make Timer
+    private fun makeTimer() {
+        this.countDownTimer = object : CountDownTimer(3600 * 24 * 1000, 500) {
+            override fun onTick(p0: Long) {
+                onTickWork()
+            }
+
+            override fun onFinish() {
+            }
+        }
+    }
+
     //handle income action from start command
     private fun handleIncomeAction(intent: Intent) {
         val action = intent.action
@@ -424,7 +442,26 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
 
     private fun initCameraView() {
         //set camera mode
-        mCamera = Camera.open(Camera.CameraInfo.CAMERA_FACING_FRONT)
+        val cameraProfile = SettingManager.getCameraProfile(this)
+
+        if(cameraProfile.mode.equals(CameraSetting.CAMERA_MODE_BACK)){
+            mCamera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK)
+        }else{
+            mCamera = Camera.open(Camera.CameraInfo.CAMERA_FACING_FRONT)
+        }
+        calculateCameraSize(cameraProfile)
+
+        onConfigurationChanged(resources.configuration)
+
+        paramCam?.gravity = cameraProfile.paramGravity
+        paramCam?.x = 0
+        paramCam?.y = 0
+
+        val mPreview  = CameraPreview(this,mCamera)
+
+        cameraPreview.addView(mPreview)
+        mCamera?.startPreview()
+
     }
 
 
@@ -455,15 +492,60 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
     }
 
     private fun updateCameraMode() {
+        val profile = SettingManager.getCameraProfile(this)
+        if(profile.mode.equals(CameraSetting.CAMERA_MODE_OFF)){
+            toggleView(mCameraLayout,View.GONE)
+        }else{
+            mCameraLayout?.let {
+                windowManager?.removeViewImmediate(it)
+                releaseCamera()
+                initCameraView()
+            }
+        }
+    }
 
+    private fun toggleView(mCameraLayout: View, gone: Int) {
+        mCameraLayout.visibility = gone
+    }
+
+    private fun releaseCamera() {
+        mCamera?.let {
+            it.stopPreview()
+            it.setPreviewCallback(null)
+            it.release()
+        }
     }
 
     private fun updateCameraPosition() {
-        TODO("Not yet implemented")
+       val profile = SettingManager.getCameraProfile(this)
+        paramCam?.gravity = profile.paramGravity
+        paramCam?.x = 0
+        paramCam?.y = 0
+        windowManager?.updateViewLayout(mCameraLayout,paramCam)
     }
 
     private fun updateCameraSize() {
-        TODO("Not yet implemented")
+        val profile = SettingManager.getCameraProfile(this)
+        calculateCameraSize(profile)
+        onConfigurationChanged(resources.configuration)
+    }
+
+    private fun calculateCameraSize(profile: CameraSetting) {
+        var factor = 0
+        when(profile.size){
+            CameraSetting.SIZE_BIG-> factor = 3
+            CameraSetting.SIZE_MEDIUM -> factor = 4
+            else-> factor = 5
+        }
+        var mScreenWidth = resources.displayMetrics.widthPixels
+        var mScreenHeight = resources.displayMetrics.heightPixels
+        if(mScreenWidth > mScreenHeight){
+            mCameraWidth = mScreenWidth / factor
+            mCameraHeight = mScreenHeight /factor
+        }else{
+            mCameraWidth = mScreenHeight/factor
+            mCameraHeight = mScreenWidth/factor
+        }
     }
 
     private fun handleNotifyFromStreamService(intent: Intent) {
@@ -500,19 +582,26 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
         }
     }
 
-    private fun hasGoogleSignIn(): Boolean {
+    private fun loadGoogleSignIn() {
         val account = GoogleSignIn.getLastSignedInAccount(this)
         account?.let {
             Glide.with(this).load(it.photoUrl).into(accountImage)
         }
-        return account != null
     }
 
-    inner class GetTime() : AsyncTask<Long, Void, Void?>() {
+    fun showStatusLive() {
+        if (!isLive) {
+            windowManager?.addView(mStatusView, paramStatus)
+        } else {
+            windowManager?.removeViewImmediate(mStatusView)
+        }
+    }
+
+    inner class GetLiveStatus : AsyncTask<Long, Void, Void?>() {
         override fun doInBackground(vararg p0: Long?): Void? {
             val youTube = StreamProfile.youTube!!
-            val streamId = StreamProfile.streamId!!
-            val id = StreamProfile.broadcastKey!!
+            val streamId = StreamProfile.streamId
+            val id = StreamProfile.broadcastKey
             val liveBroadcast = youTube.liveBroadcasts().list("status")
             liveBroadcast.id = id
             val broacastResult = liveBroadcast.execute()
@@ -522,17 +611,26 @@ class StreamingControllerService() : Service(), View.OnTouchListener, View.OnCli
             liveStream.id = streamId
             val result = liveStream.execute()
             var item = result.items[0]
-            this@StreamingControllerService.status = item.status.streamStatus
-            if (item.status.streamStatus == "active" && !isEventStarted) {
-                MainActivity?.mContext?.startEvent(StreamProfile.broadcastKey)
+            liveStatus = item.status.streamStatus
+            if (liveStatus.equals("active") && !isEventStarted) {
+                startEventTask()
                 isEventStarted = true
             }
             val ob = JSONObject(item)
             val status: JSONObject = ob["status"] as JSONObject
             val healthStatus = status["healthStatus"] as JSONObject
             health = healthStatus["status"] as String
-            println(item)
             return null
         }
+    }
+
+    fun startEventTask() {
+        Thread(Runnable {
+            YoutubeApi.startEvent(
+                StreamProfile.youTube!!,
+                StreamProfile.broadcastKey,
+                StreamProfile.streamId
+            )
+        }).start()
     }
 }

@@ -10,10 +10,9 @@ import android.util.DisplayMetrics
 import android.view.Display
 import androidx.annotation.NonNull
 import com.android.shotz_pro_io.main.MainActivity
-import com.android.shotz_pro_io.rtmp.Publisher
-import com.android.shotz_pro_io.rtmp.PublisherListener
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.util.ExponentialBackOff
+import com.android.shotz_pro_io.controllers.rtmp.Publisher
+import com.android.shotz_pro_io.controllers.rtmp.PublisherListener
+import com.android.shotz_pro_io.controllers.rtmp.utils.StreamProfile
 import java.lang.Exception
 
 class StreamingService : BaseService(), PublisherListener {
@@ -122,7 +121,6 @@ class StreamingService : BaseService(), PublisherListener {
                        mPublisher?.let {
                         it.startPublishing()
                     }
-
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -132,11 +130,11 @@ class StreamingService : BaseService(), PublisherListener {
         }
     }
 
-    open fun stopStreaming(broadcastId: String) {
+    open fun stopStreaming() {
         mPublisher?.let {
             if (it.isPublishing()!!) {
                 it.stopPublishing()
-                MainActivity.mContext?.endEvent(broadcastId)
+                MainActivity.mContext?.endEvent(StreamProfile.broadcastKey)
             }
         }
     }

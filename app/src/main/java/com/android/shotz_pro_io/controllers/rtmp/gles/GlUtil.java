@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.shotz_pro_io.rtmp.gles;
+package com.android.shotz_pro_io.controllers.rtmp.gles;
 
 import android.opengl.GLES20;
 import android.opengl.GLES30;

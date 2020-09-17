@@ -1,6 +1,5 @@
 package com.android.shotz_pro_io.stream
 
-import com.android.shotz_pro_io.rtmp.utils.StreamProfile
 import com.google.api.client.util.DateTime
 import com.google.api.services.youtube.YouTube
 import com.google.api.services.youtube.model.*
@@ -14,13 +13,13 @@ class YoutubeApi {
         val RTMP_URL_KEY = "rtmpUrl"
         val BROADCAST_ID_KEY = "broadcastId"
 
-        fun createLiveEvent(youtube: YouTube, youtubeTitle: String, youtubeDescription: String) {
+
+        fun createLiveEvent(youtube: YouTube, youtubeTitle: String, youtubeDescription: String) : LiveBroadcast? {
             val dataFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
             dataFormat.timeZone = TimeZone.getTimeZone("UTC")
             val futureDateMilis = System.currentTimeMillis() + 5000
             val date = Date()
             date.time = futureDateMilis
-            val dateCurrent = dataFormat.format(date)
 
             try {
                 //set BroadCast
@@ -32,8 +31,8 @@ class YoutubeApi {
                 val contentDetails = LiveBroadcastContentDetails()
                 val monitorstream = MonitorStreamInfo()
                 monitorstream.enableMonitorStream = false
-                contentDetails.startWithSlate = false
                 contentDetails.monitorStream = monitorstream
+                contentDetails.startWithSlate = false
 
                 //Set LiveBroadCast Status
                 val liveBroadcastStatus = LiveBroadcastStatus()
@@ -81,13 +80,11 @@ class YoutubeApi {
                 liveBroadcastBind.streamId = returnedStream.id
 
                 //returned bind
-                val BindResult = liveBroadcastBind.execute()
-                StreamProfile.broadcastKey = BindResult.id
-                StreamProfile.streamId = BindResult.contentDetails.boundStreamId
-
+                return liveBroadcastBind.execute()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+            return null
         }
 
         fun getLiveEvents(youtube: YouTube): List<EventData> {

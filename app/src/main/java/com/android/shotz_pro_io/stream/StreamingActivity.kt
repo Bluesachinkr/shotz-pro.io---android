@@ -10,17 +10,16 @@ import androidx.appcompat.app.AppCompatActivity
 import com.android.shotz_pro_io.R
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
 
-class StreamingActivity() : AppCompatActivity(){
+class StreamingActivity : AppCompatActivity() {
 
-    private var credential : GoogleAccountCredential? = null
     private val SCREEN_CAPTURE_CODE = 201
 
-    private var mScreenCaptureIntent : Intent? = null
-    private var nScreenCaptureResultCode : Int = 0
+    private var mScreenCaptureIntent: Intent? = null
+    private var nScreenCaptureResultCode: Int = 0
 
-    companion object{
-        var rtmpUrl : String = ""
-        var broadCastId : String = ""
+    companion object {
+        var rtmpUrl: String = ""
+        var broadCastId: String = ""
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,10 +33,10 @@ class StreamingActivity() : AppCompatActivity(){
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if(requestCode == SCREEN_CAPTURE_CODE){
-            if(resultCode != RESULT_OK){
+        if (requestCode == SCREEN_CAPTURE_CODE) {
+            if (resultCode != RESULT_OK) {
                 return
-            }else{
+            } else {
                 mScreenCaptureIntent = data
                 mScreenCaptureIntent?.putExtra("SCREEN_CAPTURE_INTENT_RESULT_CODE", resultCode)
                 nScreenCaptureResultCode = resultCode
@@ -47,17 +46,20 @@ class StreamingActivity() : AppCompatActivity(){
         super.onActivityResult(requestCode, resultCode, data)
     }
 
-    fun startStreamControllerServie(){
+    fun startStreamControllerServie() {
         val streamingControllerService = Intent(this, StreamingControllerService()::class.java)
+        streamingControllerService.action = "Camera_Available"
+
         streamingControllerService.putExtra(Intent.EXTRA_INTENT, mScreenCaptureIntent)
         streamingControllerService.putExtra(YoutubeApi.RTMP_URL_KEY, rtmpUrl)
         streamingControllerService.putExtra(YoutubeApi.BROADCAST_ID_KEY, broadCastId)
         startService(streamingControllerService)
     }
 
-    fun requestScreenCaptureIntent(){
-        if(mScreenCaptureIntent == null){
-            val mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+    fun requestScreenCaptureIntent() {
+        if (mScreenCaptureIntent == null) {
+            val mediaProjectionManager =
+                getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             startActivityForResult(
                 mediaProjectionManager.createScreenCaptureIntent(),
                 SCREEN_CAPTURE_CODE
@@ -65,16 +67,20 @@ class StreamingActivity() : AppCompatActivity(){
         }
     }
 
-    fun runtimePermission(){
+    fun runtimePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if(!Settings.canDrawOverlays(this)) {
+            if (!Settings.canDrawOverlays(this)) {
                 val myIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
                 startActivity(myIntent)
-            }else{
+            } else {
                 startStreamControllerServie()
             }
-        }else{
+        } else {
             startStreamControllerServie()
         }
+    }
+
+    private fun hasCameraFeature(context: Context): Boolean {
+        return context.packageManager.hasSystemFeature(CAMERA_SERVICE)
     }
 }

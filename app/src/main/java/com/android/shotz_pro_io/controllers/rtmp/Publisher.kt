@@ -1,7 +1,6 @@
-package com.android.shotz_pro_io.rtmp
+package com.android.shotz_pro_io.controllers.rtmp
 
 import android.media.projection.MediaProjection
-import android.text.style.LineHeightSpan
 import androidx.annotation.NonNull
 import java.lang.IllegalStateException
 import java.lang.RuntimeException

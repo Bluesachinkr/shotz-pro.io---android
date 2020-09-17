@@ -1,4 +1,4 @@
-package com.android.shotz_pro_io.rtmp
+package com.android.shotz_pro_io.controllers.rtmp
 
 interface PublisherListener {
     fun onStarted()

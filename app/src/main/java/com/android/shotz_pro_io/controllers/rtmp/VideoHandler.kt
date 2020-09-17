@@ -1,4 +1,4 @@
-package com.android.shotz_pro_io.rtmp
+package com.android.shotz_pro_io.controllers.rtmp
 
 import android.media.projection.MediaProjection
 import java.io.IOException
